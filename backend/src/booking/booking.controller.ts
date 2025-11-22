@@ -3,6 +3,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { BookingResponseDto } from './dto/booking-response.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
+import { GetBookingsQueryDto } from './dto/get-bookings-query.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { BookingService } from './booking.service';
 import { BookingStatus } from '@prisma/client';
@@ -48,12 +49,11 @@ export class BookingController {
     description: 'Bookings retrieved successfully',
     type: [BookingResponseDto],
   })
-  async getUserBookings(
-    @CurrentUser() user: any,
-    @Query('status') status?: BookingStatus,
-    @Query() paginationDto?: PaginationDto,
-  ) {
-    return this.bookingService.getUserBookings(user.id, paginationDto, status);
+  async getUserBookings(@CurrentUser() user: any, @Query() query?: GetBookingsQueryDto) {
+    const paginationDto: PaginationDto | undefined = query
+      ? { page: query.page, limit: query.limit }
+      : undefined;
+    return this.bookingService.getUserBookings(user.id, paginationDto, query?.status);
   }
 
   @Get(':id')

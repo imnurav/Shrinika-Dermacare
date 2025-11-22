@@ -13,5 +13,14 @@ export const usersService = {
     const response = await api.get<User>(`/admin/users/${id}`);
     return response.data;
   },
+
+  updateUser: async (id: string, payload: any): Promise<User> => {
+    const response = await api.put<User>(`/admin/users/${id}`, payload);
+    return response.data;
+  },
+  createUser: async (payload: any) => {
+    const response = await api.post<User>('/admin/users', payload);
+    return response.data;
+  },
 };
 

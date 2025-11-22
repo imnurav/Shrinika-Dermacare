@@ -6,7 +6,7 @@ import {
   IsNumber,
   IsUUID,
   IsInt,
-  IsUrl,
+  Matches,
   Min,
 } from 'class-validator';
 
@@ -30,7 +30,7 @@ export class CreateServiceDto {
   })
   @IsOptional()
   @IsString()
-  @IsUrl({}, { message: 'imageUrl must be a valid URL' })
+  @Matches(/^(https?:\/\/.+|\/uploads\/.*)$/, { message: 'imageUrl must be a valid URL or upload path' })
   imageUrl?: string;
 
   @ApiProperty({ example: 60, description: 'Duration in minutes' })

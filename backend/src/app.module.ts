@@ -16,13 +16,13 @@ import { Module } from '@nestjs/common';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    PrismaModule,
-    AuthModule,
-    UserModule,
     CatalogModule,
     BookingModule,
-    AdminModule,
+    PrismaModule,
     UploadModule,
+    AdminModule,
+    AuthModule,
+    UserModule,
   ],
   providers: [
     {

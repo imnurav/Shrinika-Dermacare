@@ -1,33 +1,53 @@
 'use client';
-
-import { Search, Filter, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Search, Filter, CheckCircle, XCircle, Clock, Edit } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import ErrorMessage from '@/components/common/ErrorMessage';
 import { getErrorMessage } from '@/lib/utils/errorHandler';
 import { bookingsService } from '@/lib/services/bookings';
+import Pagination from '@/components/common/Pagination';
 import { Booking, BookingStatus } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 
 export default function BookingsPage() {
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [formData, setFormData] = useState({ personName: '', personPhone: '', preferredDate: '', preferredTime: '', notes: '', addressId: '', serviceIds: '' });
   const [statusFilter, setStatusFilter] = useState<BookingStatus | 'ALL'>('ALL');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
 
   useEffect(() => {
     fetchBookings();
-  }, [statusFilter]);
+  }, [statusFilter, page]);
 
   const fetchBookings = async () => {
     try {
       setIsLoading(true);
       setError(null);
       const data = await bookingsService.getAllBookings(
-        statusFilter !== 'ALL' ? statusFilter : undefined
+        statusFilter !== 'ALL' ? statusFilter : undefined,
+        undefined,
+        undefined,
+        page,
+        limit
       );
-      setBookings(Array.isArray(data) ? data : data.data);
+      if (Array.isArray(data)) {
+        setBookings(data);
+        setTotalPages(1);
+        setTotalItems(data.length);
+      } else {
+        setBookings(data.data);
+        setTotalPages(data.meta.totalPages);
+        setTotalItems(data.meta.total);
+      }
     } catch (error) {
       console.error('Error fetching bookings:', error);
       setError(getErrorMessage(error));
@@ -44,6 +64,49 @@ export default function BookingsPage() {
     } catch (error) {
       console.error('Error updating booking status:', error);
       setError(getErrorMessage(error));
+    }
+  };
+
+  const openEdit = (booking: Booking) => {
+    setEditingBooking(booking);
+    setFormData({
+      personName: booking.personName || '',
+      personPhone: booking.personPhone || '',
+      preferredDate: booking.preferredDate ? new Date(booking.preferredDate).toISOString().substring(0, 10) : '',
+      preferredTime: booking.preferredTime || '',
+      notes: booking.notes || '',
+      addressId: booking.addressId || '',
+      serviceIds: booking.bookingServices ? booking.bookingServices.map(bs => bs.serviceId).join(',') : '',
+    });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingBooking(null);
+  };
+
+  const handleSave = async () => {
+    if (!editingBooking) return;
+    try {
+      setIsSaving(true);
+      setError(null);
+      const payload: any = {
+        personName: formData.personName,
+        personPhone: formData.personPhone,
+        preferredDate: formData.preferredDate,
+        preferredTime: formData.preferredTime,
+        notes: formData.notes,
+        addressId: formData.addressId,
+      };
+      if (formData.serviceIds) payload.serviceIds = formData.serviceIds.split(',').map(s => s.trim()).filter(Boolean);
+      await bookingsService.updateBooking(editingBooking.id, payload);
+      fetchBookings();
+      closeModal();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -235,6 +298,7 @@ export default function BookingsPage() {
                                 Cancel
                               </button>
                             )}
+                          <button onClick={() => openEdit(booking)} className="text-indigo-600 hover:text-indigo-900"> <Edit className="inline w-4 h-4" /> Edit</button>
                         </div>
                       </td>
                     </tr>
@@ -244,6 +308,58 @@ export default function BookingsPage() {
             </table>
           </div>
         </div>
+        <Pagination page={page} setPage={setPage} totalPages={totalPages} totalItems={totalItems} limit={limit} />
+
+        {/* Edit Modal */}
+        {isModalOpen && editingBooking && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="fixed inset-0 bg-black/40" onClick={closeModal} />
+            <div className="bg-white rounded-xl shadow-lg w-full max-w-lg p-6 z-10">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Edit Booking</h2>
+                <button onClick={closeModal} className="text-gray-500 hover:text-gray-700"><XCircle /></button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Person Name</label>
+                  <input value={formData.personName} onChange={(e) => setFormData({ ...formData, personName: e.target.value })} className="w-full mt-1 p-2 border rounded" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Person Phone</label>
+                  <input value={formData.personPhone} onChange={(e) => setFormData({ ...formData, personPhone: e.target.value })} className="w-full mt-1 p-2 border rounded" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Preferred Date</label>
+                    <input type="date" value={formData.preferredDate} onChange={(e) => setFormData({ ...formData, preferredDate: e.target.value })} className="w-full mt-1 p-2 border rounded" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Preferred Time</label>
+                    <input value={formData.preferredTime} onChange={(e) => setFormData({ ...formData, preferredTime: e.target.value })} className="w-full mt-1 p-2 border rounded" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Address ID</label>
+                  <input value={formData.addressId} onChange={(e) => setFormData({ ...formData, addressId: e.target.value })} className="w-full mt-1 p-2 border rounded" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Service IDs (comma separated)</label>
+                  <input value={formData.serviceIds} onChange={(e) => setFormData({ ...formData, serviceIds: e.target.value })} className="w-full mt-1 p-2 border rounded" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Notes</label>
+                  <textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} className="w-full mt-1 p-2 border rounded" />
+                </div>
+              </div>
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button onClick={closeModal} className="px-4 py-2 rounded bg-gray-100">Cancel</button>
+                <button onClick={handleSave} disabled={isSaving} className="px-4 py-2 rounded bg-indigo-600 text-white">{isSaving ? 'Saving...' : 'Save'}</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

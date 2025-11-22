@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsUrl } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, Matches } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateCategoryDto {
@@ -18,7 +18,7 @@ export class UpdateCategoryDto {
   })
   @IsOptional()
   @IsString()
-  @IsUrl({}, { message: 'imageUrl must be a valid URL' })
+  @Matches(/^(https?:\/\/.+|\/uploads\/.*)$/, { message: 'imageUrl must be a valid URL or upload path' })
   imageUrl?: string;
 
   @ApiPropertyOptional({ example: true })

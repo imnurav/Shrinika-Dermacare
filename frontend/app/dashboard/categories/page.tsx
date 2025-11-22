@@ -1,5 +1,6 @@
 'use client';
 import { Plus, Edit, Trash2, Package, Upload, X } from 'lucide-react';
+import Pagination from '@/components/common/Pagination';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import ErrorMessage from '@/components/common/ErrorMessage';
 import { getErrorMessage } from '@/lib/utils/errorHandler';
@@ -23,6 +24,10 @@ export default function CategoriesPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   useEffect(() => {
     fetchCategories();
@@ -34,6 +39,8 @@ export default function CategoriesPage() {
       setError(null);
       const data = await catalogService.getCategories();
       setCategories(data);
+      setTotalItems(data.length);
+      setTotalPages(Math.max(1, Math.ceil(data.length / limit)));
     } catch (error) {
       console.error('Error fetching categories:', error);
       setError(getErrorMessage(error));
@@ -163,58 +170,69 @@ export default function CategoriesPage() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {categories.map((category) => (
-            <div
-              key={category.id}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  {category.imageUrl ? (
-                    <img
-                      src={category.imageUrl}
-                      alt={category.name}
-                      className="w-12 h-12 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-                      <Package className="w-6 h-6 text-indigo-600 opacity-100" />
+          {
+            (() => {
+              const visibleCategories = categories.slice((page - 1) * limit, page * limit);
+              if (visibleCategories.length === 0) {
+                return <div className="col-span-full text-center py-12 text-gray-500">No categories found</div>;
+              }
+
+              return visibleCategories.map((category) => (
+                <div
+                  key={category.id}
+                  className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      {category.imageUrl ? (
+                        <img
+                          src={category.imageUrl}
+                          alt={category.name}
+                          className="w-12 h-12 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                          <Package className="w-6 h-6 text-indigo-600 opacity-100" />
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{category.name}</h3>
+                        <span
+                          className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${
+                            category.isActive
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}
+                        >
+                          {category.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
                     </div>
-                  )}
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{category.name}</h3>
-                    <span
-                      className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${
-                        category.isActive
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {category.isActive ? 'Active' : 'Inactive'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEdit(category)}
+                        className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
+                      >
+                        <Edit className="w-4 h-4 opacity-100" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(category.id)}
+                        className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4 opacity-100" />
+                      </button>
+                    </div>
                   </div>
+                  {category.description && (
+                    <p className="text-sm text-gray-600 mb-4">{category.description}</p>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleEdit(category)}
-                    className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
-                  >
-                    <Edit className="w-4 h-4 opacity-100" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(category.id)}
-                    className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4 opacity-100" />
-                  </button>
-                </div>
-              </div>
-              {category.description && (
-                <p className="text-sm text-gray-600 mb-4">{category.description}</p>
-              )}
-            </div>
-          ))}
+              ));
+            })()
+          }
         </div>
+
+        <Pagination page={page} setPage={setPage} totalPages={totalPages} totalItems={totalItems} limit={limit} />
 
         {/* Modal */}
         {isModalOpen && (

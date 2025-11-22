@@ -4,6 +4,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import ErrorMessage from '@/components/common/ErrorMessage';
 import { getErrorMessage } from '@/lib/utils/errorHandler';
 import { catalogService } from '@/lib/services/catalog';
+import Pagination from '@/components/common/Pagination';
 import { uploadService } from '@/lib/services/upload';
 import { Service, Category } from '@/lib/types';
 import { useEffect, useState } from 'react';
@@ -28,20 +29,32 @@ export default function ServicesPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [page]);
 
   const fetchData = async () => {
     try {
       setIsLoading(true);
       setError(null);
       const [servicesData, categoriesData] = await Promise.all([
-        catalogService.getServices(),
+        catalogService.getServices(undefined, page, limit),
         catalogService.getCategories(),
       ]);
-      setServices(Array.isArray(servicesData) ? servicesData : servicesData.data);
+      if (Array.isArray(servicesData)) {
+        setServices(servicesData);
+        setTotalPages(1);
+        setTotalItems(servicesData.length);
+      } else {
+        setServices(servicesData.data);
+        setTotalPages(servicesData.meta.totalPages);
+        setTotalItems(servicesData.meta.total);
+      }
       setCategories(categoriesData);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -148,6 +161,8 @@ export default function ServicesPage() {
         <div className="flex items-center justify-center h-64">
           <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
         </div>
+
+        <Pagination page={page} setPage={setPage} totalPages={totalPages} totalItems={totalItems} limit={limit} />
       </DashboardLayout>
     );
   }
@@ -227,11 +242,10 @@ export default function ServicesPage() {
                   <span className="text-gray-600">₹{service.price}</span>
                 </div>
                 <span
-                  className={`px-2 py-0.5 rounded text-xs font-medium ${
-                    service.isActive
+                  className={`px-2 py-0.5 rounded text-xs font-medium ${service.isActive
                       ? 'bg-green-100 text-green-800'
                       : 'bg-gray-100 text-gray-800'
-                  }`}
+                    }`}
                 >
                   {service.isActive ? 'Active' : 'Inactive'}
                 </span>
@@ -239,6 +253,7 @@ export default function ServicesPage() {
             </div>
           ))}
         </div>
+        <Pagination page={page} setPage={setPage} totalPages={totalPages} totalItems={totalItems} limit={limit} />
 
         {/* Modal */}
         {isModalOpen && (

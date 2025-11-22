@@ -81,15 +81,69 @@ export class BookingService {
     return booking as BookingResponseDto;
   }
 
+  async updateBookingAsAdmin(
+    bookingId: string,
+    updateBookingDto: any,
+  ): Promise<BookingResponseDto> {
+    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    const data: any = {};
+
+    if (updateBookingDto.personName !== undefined) data.personName = updateBookingDto.personName;
+    if (updateBookingDto.personPhone !== undefined) data.personPhone = updateBookingDto.personPhone;
+    if (updateBookingDto.preferredTime !== undefined)
+      data.preferredTime = updateBookingDto.preferredTime;
+    if (updateBookingDto.notes !== undefined) data.notes = updateBookingDto.notes;
+    if (updateBookingDto.preferredDate !== undefined)
+      data.preferredDate = new Date(updateBookingDto.preferredDate);
+
+    // If addressId provided, verify it exists
+    if (updateBookingDto.addressId !== undefined) {
+      const address = await this.prisma.address.findUnique({
+        where: { id: updateBookingDto.addressId },
+      });
+      if (!address) {
+        throw new NotFoundException('Address not found');
+      }
+      data.addressId = updateBookingDto.addressId;
+    }
+
+    // If serviceIds provided, replace bookingServices
+    const bookingUpdate: any = {
+      where: { id: bookingId },
+      include: {
+        address: true,
+        bookingServices: { include: { service: { include: { category: true } } } },
+      },
+    };
+
+    if (updateBookingDto.serviceIds !== undefined) {
+      bookingUpdate['data'] = {
+        ...data,
+        bookingServices: {
+          deleteMany: {},
+          create: updateBookingDto.serviceIds.map((serviceId: string) => ({ serviceId })),
+        },
+      };
+    } else {
+      bookingUpdate['data'] = data;
+    }
+
+    const updated = await this.prisma.booking.update(bookingUpdate as any);
+    return updated as BookingResponseDto;
+  }
+
   async getUserBookings(
     userId: string,
     paginationDto?: PaginationDto,
     status?: BookingStatus,
   ): Promise<PaginatedResponse<BookingResponseDto> | BookingResponseDto[]> {
     const where: any = { userId };
-    if (status) {
-      where.status = status;
-    }
+    if (status) where.status = status;
 
     if (paginationDto) {
       const page = paginationDto.page || 1;

@@ -24,5 +24,10 @@ export const bookingsService = {
     const response = await api.put<Booking>(`/admin/bookings/${id}/status`, { status });
     return response.data;
   },
+
+  updateBooking: async (id: string, payload: Partial<Booking>): Promise<Booking> => {
+    const response = await api.put<Booking>(`/admin/bookings/${id}`, payload);
+    return response.data;
+  },
 };
 

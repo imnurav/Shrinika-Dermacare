@@ -11,7 +11,7 @@ export default function HomePage() {
     const user = authService.getCurrentUser();
     const token = authService.getToken();
 
-    if (token && user && user.role === 'ADMIN') {
+    if (token && user && (user.role === 'ADMIN' || user.role === 'SUPERADMIN')) {
       router.push('/dashboard');
     } else {
       router.push('/login');

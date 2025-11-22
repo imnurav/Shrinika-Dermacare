@@ -12,7 +12,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const user = authService.getCurrentUser();
     const token = authService.getToken();
 
-    if (!token || !user || user.role !== 'ADMIN') {
+    if (!token || !user || (user.role !== 'ADMIN' && user.role !== 'SUPERADMIN')) {
       router.push('/login');
     }
   }, [router]);
