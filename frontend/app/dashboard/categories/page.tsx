@@ -1,17 +1,25 @@
 'use client';
-import { Plus, Edit, Trash2, Package, Upload, X } from 'lucide-react';
-import Pagination from '@/components/common/Pagination';
+import { FormInput, FormTextArea } from '@/components/form/FormFields';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import SearchFilterBar from '@/components/common/SearchFilterBar';
+import ImageUploadField from '@/components/form/ImageUploadField';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ErrorMessage from '@/components/common/ErrorMessage';
+import ActionButton from '@/components/common/ActionButton';
+import { Plus, Edit, Trash2, Package } from 'lucide-react';
 import { getErrorMessage } from '@/lib/utils/errorHandler';
+import { useEffect, useState, useCallback } from 'react';
+import Pagination from '@/components/common/Pagination';
+import PageHeader from '@/components/common/PageHeader';
 import { catalogService } from '@/lib/services/catalog';
 import { uploadService } from '@/lib/services/upload';
-import { useEffect, useState } from 'react';
+import Modal from '@/components/common/Modal';
 import { Category } from '@/lib/types';
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [formData, setFormData] = useState({
@@ -29,25 +37,24 @@ export default function CategoriesPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await catalogService.getCategories();
+      const data = await catalogService.getCategories(searchTerm || undefined);
       setCategories(data);
       setTotalItems(data.length);
       setTotalPages(Math.max(1, Math.ceil(data.length / limit)));
     } catch (error) {
-      console.error('Error fetching categories:', error);
       setError(getErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [searchTerm, limit]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -61,13 +68,11 @@ export default function CategoriesPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     try {
       setIsUploading(true);
       let imageUrl = formData.imageUrl;
 
-      // Upload image if a new file is selected
       if (selectedFile) {
         imageUrl = await uploadService.uploadImage(selectedFile, 'categories');
       }
@@ -82,9 +87,7 @@ export default function CategoriesPage() {
       } else {
         await catalogService.createCategory(categoryData);
       }
-      setIsModalOpen(false);
-      setEditingCategory(null);
-      resetForm();
+      closeModal();
       fetchCategories();
     } catch (error: any) {
       setError(getErrorMessage(error));
@@ -128,6 +131,12 @@ export default function CategoriesPage() {
     setImagePreview(null);
   };
 
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingCategory(null);
+    resetForm();
+  };
+
   const openModal = () => {
     setEditingCategory(null);
     resetForm();
@@ -137,9 +146,7 @@ export default function CategoriesPage() {
   if (isLoading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-        </div>
+        <LoadingSpinner />
       </DashboardLayout>
     );
   }
@@ -147,203 +154,145 @@ export default function CategoriesPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Categories</h1>
-            <p className="text-gray-600 mt-1">Manage service categories</p>
-          </div>
-          <button
-            onClick={openModal}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Add Category
-          </button>
-        </div>
+        <PageHeader
+          title="Categories"
+          description="Manage service categories"
+          actionButton={
+            <ActionButton variant="primary" icon={<Plus className="w-5 h-5" />} onClick={openModal}>
+              Add Category
+            </ActionButton>
+          }
+        />
 
-        {error && (
-          <ErrorMessage
-            message={error}
-            onDismiss={() => setError(null)}
-            type="error"
-          />
-        )}
+        {error && <ErrorMessage message={error} onDismiss={() => setError(null)} type="error" />}
+
+        <SearchFilterBar
+          searchValue={searchTerm}
+          onSearchChange={setSearchTerm}
+          searchPlaceholder="Search categories by name..."
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {
-            (() => {
-              const visibleCategories = categories.slice((page - 1) * limit, page * limit);
-              if (visibleCategories.length === 0) {
-                return <div className="col-span-full text-center py-12 text-gray-500">No categories found</div>;
-              }
+          {(() => {
+            const visibleCategories = categories.slice((page - 1) * limit, page * limit);
+            if (visibleCategories.length === 0) {
+              return <div className="col-span-full text-center py-12 text-gray-500">No categories found</div>;
+            }
 
-              return visibleCategories.map((category) => (
-                <div
-                  key={category.id}
-                  className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      {category.imageUrl ? (
-                        <img
-                          src={category.imageUrl}
-                          alt={category.name}
-                          className="w-12 h-12 rounded-lg object-cover"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-                          <Package className="w-6 h-6 text-indigo-600 opacity-100" />
-                        </div>
-                      )}
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{category.name}</h3>
-                        <span
-                          className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${
-                            category.isActive
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}
-                        >
-                          {category.isActive ? 'Active' : 'Inactive'}
-                        </span>
+            return visibleCategories.map((category) => (
+              <div
+                key={category.id}
+                className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    {category.imageUrl ? (
+                      <img
+                        src={category.imageUrl}
+                        alt={category.name}
+                        className="w-12 h-12 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                        <Package className="w-6 h-6 text-indigo-600" />
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleEdit(category)}
-                        className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
+                    )}
+                    <div>
+                      <h3 className="font-semibold text-gray-900">{category.name}</h3>
+                      <span
+                        className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${category.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                          }`}
                       >
-                        <Edit className="w-4 h-4 opacity-100" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(category.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4 opacity-100" />
-                      </button>
+                        {category.isActive ? 'Active' : 'Inactive'}
+                      </span>
                     </div>
                   </div>
-                  {category.description && (
-                    <p className="text-sm text-gray-600 mb-4">{category.description}</p>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <ActionButton
+                      variant="secondary"
+                      size="sm"
+                      icon={<Edit className="w-4 h-4" />}
+                      onClick={() => handleEdit(category)}
+                    >
+                      &nbsp;
+                    </ActionButton>
+                    <ActionButton
+                      variant="danger"
+                      size="sm"
+                      icon={<Trash2 className="w-4 h-4" />}
+                      onClick={() => handleDelete(category.id)}
+                    >
+                      &nbsp;
+                    </ActionButton>
+                  </div>
                 </div>
-              ));
-            })()
-          }
+                {category.description && <p className="text-sm text-gray-600 mb-4">{category.description}</p>}
+              </div>
+            ));
+          })()}
         </div>
 
         <Pagination page={page} setPage={setPage} totalPages={totalPages} totalItems={totalItems} limit={limit} />
 
         {/* Modal */}
-        {isModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                {editingCategory ? 'Edit Category' : 'Add Category'}
-              </h2>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Description
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Image
-                  </label>
-                  {imagePreview ? (
-                    <div className="relative mb-2">
-                      <img
-                        src={imagePreview}
-                        alt="Preview"
-                        className="w-full h-48 object-cover rounded-lg border border-gray-300"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setImagePreview(null);
-                          setSelectedFile(null);
-                        }}
-                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                      <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm text-gray-600 mb-2">Click to upload or drag and drop</p>
-                      <p className="text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>
-                    </div>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                    id="image-upload"
-                  />
-                  <label
-                    htmlFor="image-upload"
-                    className="mt-2 block w-full px-4 py-2 border border-gray-300 rounded-lg text-center cursor-pointer hover:bg-gray-50 transition-colors"
-                  >
-                    {imagePreview ? 'Change Image' : 'Choose Image'}
-                  </label>
-                </div>
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="isActive"
-                    checked={formData.isActive}
-                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                  />
-                  <label htmlFor="isActive" className="ml-2 text-sm text-gray-700">
-                    Active
-                  </label>
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsModalOpen(false);
-                      setEditingCategory(null);
-                      resetForm();
-                    }}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isUploading}
-                    className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isUploading ? 'Uploading...' : editingCategory ? 'Update' : 'Create'}
-                  </button>
-                </div>
-              </form>
+        <Modal
+          isOpen={isModalOpen}
+          onClose={closeModal}
+          title={editingCategory ? 'Edit Category' : 'Add Category'}
+          size="md"
+          footer={
+            <>
+              <button
+                onClick={closeModal}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <ActionButton variant="primary" onClick={handleSubmit} loading={isUploading}>
+                {editingCategory ? 'Update' : 'Create'}
+              </ActionButton>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <FormInput
+              label="Name"
+              required
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Category name"
+            />
+            <FormTextArea
+              label="Description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Category description"
+              rows={3}
+            />
+            <ImageUploadField
+              label="Image"
+              value={formData.imageUrl}
+              preview={imagePreview}
+              onFileChange={handleFileChange}
+              onRemove={() => {
+                setImagePreview(null);
+                setSelectedFile(null);
+              }}
+            />
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="isActive"
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              />
+              <label htmlFor="isActive" className="ml-2 text-sm text-gray-700">
+                Active
+              </label>
             </div>
           </div>
-        )}
+        </Modal>
       </div>
     </DashboardLayout>
   );

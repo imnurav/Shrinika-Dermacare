@@ -1,7 +1,7 @@
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { UpdateBookingStatusDto } from '../booking/dto/update-booking-status.dto';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { BookingResponseDto } from '../booking/dto/booking-response.dto';
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { BookingService } from '../booking/booking.service';
 import { UploadService } from '../upload/upload.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,8 +20,9 @@ export class AdminService {
     status?: BookingStatus,
     startDate?: string,
     endDate?: string,
+    search?: string,
   ): Promise<PaginatedResponse<BookingResponseDto> | BookingResponseDto[]> {
-    return this.bookingService.getAllBookings(paginationDto, status, startDate, endDate);
+    return this.bookingService.getAllBookings(paginationDto, status, startDate, endDate, search);
   }
 
   async getBookingById(bookingId: string): Promise<BookingResponseDto> {
@@ -36,8 +37,19 @@ export class AdminService {
     return this.bookingService.updateBookingStatus(bookingId, updateBookingStatusDto);
   }
 
-  async getAllUsers(paginationDto?: PaginationDto): Promise<PaginatedResponse<any> | any[]> {
+  async getAllUsers(
+    paginationDto?: PaginationDto,
+    search?: string,
+  ): Promise<PaginatedResponse<any> | any[]> {
     const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
     if (paginationDto) {
       const page = paginationDto.page || 1;

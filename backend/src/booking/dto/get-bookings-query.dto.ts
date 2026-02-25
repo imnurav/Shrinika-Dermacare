@@ -4,6 +4,11 @@ import { Type } from 'class-transformer';
 import { BookingStatus } from '@prisma/client';
 
 export class GetBookingsQueryDto {
+  @ApiPropertyOptional({ type: String, description: 'Search by person name or phone' })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
   @ApiPropertyOptional({ enum: BookingStatus })
   @IsOptional()
   @IsEnum(BookingStatus)

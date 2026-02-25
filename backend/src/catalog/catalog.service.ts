@@ -1,6 +1,6 @@
 import { CategoryResponseDto, CategoryWithServicesDto } from './dto/category-response.dto';
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
+// import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { ServiceResponseDto } from './dto/service-response.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -14,11 +14,18 @@ export class CatalogService {
 
   // Categories
   async getCategories(
+    search?: string,
     includeServices = false,
   ): Promise<CategoryResponseDto[] | CategoryWithServicesDto[]> {
+    const where: any = { isActive: true };
+
+    if (search) {
+      where.name = { contains: search, mode: 'insensitive' };
+    }
+
     if (includeServices) {
       return this.prisma.category.findMany({
-        where: { isActive: true },
+        where,
         include: {
           services: {
             where: { isActive: true },
@@ -30,7 +37,7 @@ export class CatalogService {
     }
 
     return this.prisma.category.findMany({
-      where: { isActive: true },
+      where,
       orderBy: { name: 'asc' },
     });
   }
@@ -122,49 +129,24 @@ export class CatalogService {
   }
 
   // Services
-  async getServices(
-    categoryId?: string,
-    paginationDto?: PaginationDto,
-  ): Promise<PaginatedResponse<ServiceResponseDto> | ServiceResponseDto[]> {
+  async getServices(categoryId?: string, search?: string): Promise<ServiceResponseDto[]> {
     const where: any = { isActive: true };
     if (categoryId) {
       where.categoryId = categoryId;
     }
 
-    if (paginationDto) {
-      const page = paginationDto.page || 1;
-      const limit = paginationDto.limit || 10;
-      const skip = (page - 1) * limit;
-
-      const [data, total] = await Promise.all([
-        this.prisma.service.findMany({
-          where,
-          include: { category: true },
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: limit,
-        }),
-        this.prisma.service.count({ where }),
-      ]);
-
-      return {
-        data,
-        meta: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
-      };
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
     }
 
-    const services = await this.prisma.service.findMany({
+    return this.prisma.service.findMany({
       where,
       include: { category: true },
       orderBy: { createdAt: 'desc' },
     });
-
-    return services;
   }
 
   async getServiceById(id: string): Promise<ServiceResponseDto> {

@@ -45,7 +45,7 @@ export default function LoginPage() {
         password: data.password,
       });
       router.push('/dashboard');
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(getErrorMessage(err));
     } finally {
       setIsLoading(false);
@@ -53,7 +53,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-indigo-500 via-purple-500 to-pink-500 p-4">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <div className="text-center mb-8">
@@ -67,7 +67,7 @@ export default function LoginPage() {
           {error && (
             <ErrorMessage
               message={error}
-              onDismiss={() => setError(null)}
+              onDismiss={() => setError('')}
               type="error"
             />
           )}

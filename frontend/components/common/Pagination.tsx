@@ -21,7 +21,7 @@ export default function Pagination({ page, setPage, totalPages, totalItems, limi
             <div className="text-sm text-gray-600">Showing {start} - {end} of {totalItems}</div>
             <div className="flex items-center gap-2">
                 <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    onClick={() => setPage(Math.max(1, page - 1))}
                     disabled={page <= 1}
                     className={`px-3 cursor-pointer py-1 rounded ${page <= 1 ? 'bg-gray-100 text-gray-400' : 'bg-white border'}`}
                 >Prev</button>
@@ -37,7 +37,7 @@ export default function Pagination({ page, setPage, totalPages, totalItems, limi
                 </div>
 
                 <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() => setPage(Math.min(totalPages, page + 1))}
                     disabled={page >= totalPages}
                     className={`px-3 py-1 cursor-pointer rounded ${page >= totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white border'}`}
                 >Next</button>

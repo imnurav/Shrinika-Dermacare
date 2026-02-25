@@ -1,11 +1,14 @@
-import { Category, Service, PaginatedResponse } from '../types';
-import api from '../api';
+import { Category, Service } from "../types";
+import api from "../api";
 
 export const catalogService = {
   // Categories
-  getCategories: async (includeServices = false): Promise<Category[]> => {
-    const response = await api.get<Category[]>('/catalog/categories', {
-      params: { includeServices },
+  getCategories: async (
+    search?: string,
+    includeServices = false,
+  ): Promise<Category[]> => {
+    const response = await api.get<Category[]>("/catalog/categories", {
+      params: { search, includeServices },
     });
     return response.data;
   },
@@ -16,11 +19,14 @@ export const catalogService = {
   },
 
   createCategory: async (data: Partial<Category>): Promise<Category> => {
-    const response = await api.post<Category>('/catalog/categories', data);
+    const response = await api.post<Category>("/catalog/categories", data);
     return response.data;
   },
 
-  updateCategory: async (id: string, data: Partial<Category>): Promise<Category> => {
+  updateCategory: async (
+    id: string,
+    data: Partial<Category>,
+  ): Promise<Category> => {
     const response = await api.put<Category>(`/catalog/categories/${id}`, data);
     return response.data;
   },
@@ -30,9 +36,12 @@ export const catalogService = {
   },
 
   // Services
-  getServices: async (categoryId?: string, page = 1, limit = 10): Promise<PaginatedResponse<Service> | Service[]> => {
-    const response = await api.get('/catalog/services', {
-      params: { categoryId, page, limit },
+  getServices: async (
+    categoryId?: string,
+    search?: string,
+  ): Promise<Service[]> => {
+    const response = await api.get<Service[]>("/catalog/services", {
+      params: { categoryId, search },
     });
     return response.data;
   },
@@ -43,11 +52,14 @@ export const catalogService = {
   },
 
   createService: async (data: Partial<Service>): Promise<Service> => {
-    const response = await api.post<Service>('/catalog/services', data);
+    const response = await api.post<Service>("/catalog/services", data);
     return response.data;
   },
 
-  updateService: async (id: string, data: Partial<Service>): Promise<Service> => {
+  updateService: async (
+    id: string,
+    data: Partial<Service>,
+  ): Promise<Service> => {
     const response = await api.put<Service>(`/catalog/services/${id}`, data);
     return response.data;
   },
@@ -56,4 +68,3 @@ export const catalogService = {
     await api.delete(`/catalog/services/${id}`);
   },
 };
-

@@ -51,7 +51,7 @@ export default function DashboardPage() {
         ]);
 
         const bookingsArray = Array.isArray(bookings) ? bookings : bookings.data;
-        const servicesArray = Array.isArray(services) ? services : services.data;
+        const servicesArray = Array.isArray(services) ? services : services;
         const usersArray = Array.isArray(users) ? users : users.data;
 
         setStats({

@@ -1,11 +1,12 @@
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
+import { GetCategoriesQueryDto } from './dto/get-categories-query.dto';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
+import { GetServicesQueryDto } from './dto/get-services-query.dto';
 import { CategoryResponseDto } from './dto/category-response.dto';
 import { ServiceResponseDto } from './dto/service-response.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
-import { PaginationDto } from '../common/dto/pagination.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
@@ -34,18 +35,25 @@ export class CatalogController {
   @Get('categories')
   @ApiOperation({ summary: 'Get all active categories' })
   @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by category name',
+  })
+  @ApiQuery({
     name: 'includeServices',
     required: false,
-    type: Boolean,
-    description: 'Include services in response',
+    type: String,
+    description: 'Include services in response (true/false)',
   })
   @ApiResponse({
     status: 200,
     description: 'Categories retrieved successfully',
     type: [CategoryResponseDto],
   })
-  async getCategories(@Query('includeServices') includeServices?: string) {
-    return this.catalogService.getCategories(includeServices === 'true');
+  async getCategories(@Query() query?: GetCategoriesQueryDto) {
+    const includeServices = query?.includeServices === 'true';
+    return this.catalogService.getCategories(query?.search, includeServices);
   }
 
   @Public()
@@ -117,17 +125,20 @@ export class CatalogController {
   @Public()
   @Get('services')
   @ApiOperation({ summary: 'Get all active services' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by service name or description',
+  })
   @ApiQuery({ name: 'categoryId', required: false, type: String })
   @ApiResponse({
     status: 200,
     description: 'Services retrieved successfully',
     type: [ServiceResponseDto],
   })
-  async getServices(
-    @Query('categoryId') categoryId?: string,
-    @Query() paginationDto?: PaginationDto,
-  ) {
-    return this.catalogService.getServices(categoryId, paginationDto);
+  async getServices(@Query() query?: GetServicesQueryDto) {
+    return this.catalogService.getServices(query?.categoryId, query?.search);
   }
 
   @Public()

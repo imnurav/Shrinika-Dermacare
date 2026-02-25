@@ -311,8 +311,16 @@ export class BookingService {
     status?: BookingStatus,
     startDate?: string,
     endDate?: string,
+    search?: string,
   ): Promise<PaginatedResponse<BookingResponseDto> | BookingResponseDto[]> {
     const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { personName: { contains: search, mode: 'insensitive' } },
+        { personPhone: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
     if (status) {
       where.status = status;

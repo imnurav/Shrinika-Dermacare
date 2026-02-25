@@ -1,19 +1,25 @@
 'use client';
 import { Plus, Edit, Trash2, ShoppingBag, Upload, X } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import SearchFilterBar from '@/components/common/SearchFilterBar';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ErrorMessage from '@/components/common/ErrorMessage';
+import ActionButton from '@/components/common/ActionButton';
 import { getErrorMessage } from '@/lib/utils/errorHandler';
+import { useEffect, useState, useCallback } from 'react';
+import PageHeader from '@/components/common/PageHeader';
 import { catalogService } from '@/lib/services/catalog';
 import Pagination from '@/components/common/Pagination';
 import { uploadService } from '@/lib/services/upload';
 import { Service, Category } from '@/lib/types';
-import { useEffect, useState } from 'react';
+// import Image from 'next/image';
 
 
 export default function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [formData, setFormData] = useState({
@@ -34,27 +40,17 @@ export default function ServicesPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 
-  useEffect(() => {
-    fetchData();
-  }, [page]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
       const [servicesData, categoriesData] = await Promise.all([
-        catalogService.getServices(undefined, page, limit),
+        catalogService.getServices(undefined, searchTerm || undefined),
         catalogService.getCategories(),
       ]);
-      if (Array.isArray(servicesData)) {
-        setServices(servicesData);
-        setTotalPages(1);
-        setTotalItems(servicesData.length);
-      } else {
-        setServices(servicesData.data);
-        setTotalPages(servicesData.meta.totalPages);
-        setTotalItems(servicesData.meta.total);
-      }
+      setServices(servicesData);
+      setTotalItems(servicesData.length);
+      setTotalPages(Math.max(1, Math.ceil(servicesData.length / limit)));
       setCategories(categoriesData);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -62,7 +58,11 @@ export default function ServicesPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [searchTerm, limit]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -101,7 +101,7 @@ export default function ServicesPage() {
       setEditingService(null);
       resetForm();
       fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       setError(getErrorMessage(error));
     } finally {
       setIsUploading(false);
@@ -130,7 +130,7 @@ export default function ServicesPage() {
       setError(null);
       await catalogService.deleteService(id);
       fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       setError(getErrorMessage(error));
     }
   };
@@ -158,11 +158,7 @@ export default function ServicesPage() {
   if (isLoading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-        </div>
-
-        <Pagination page={page} setPage={setPage} totalPages={totalPages} totalItems={totalItems} limit={limit} />
+        <LoadingSpinner />
       </DashboardLayout>
     );
   }
@@ -170,19 +166,15 @@ export default function ServicesPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Services</h1>
-            <p className="text-gray-600 mt-1">Manage services</p>
-          </div>
-          <button
-            onClick={openModal}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Add Service
-          </button>
-        </div>
+        <PageHeader
+          title="Services"
+          description="Manage services"
+          actionButton={
+            <ActionButton variant="primary" icon={<Plus className="w-5 h-5" />} onClick={openModal}>
+              Add Service
+            </ActionButton>
+          }
+        />
 
         {error && (
           <ErrorMessage
@@ -191,6 +183,12 @@ export default function ServicesPage() {
             type="error"
           />
         )}
+
+        <SearchFilterBar
+          searchValue={searchTerm}
+          onSearchChange={setSearchTerm}
+          searchPlaceholder="Search services by title or description..."
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {services.map((service) => (
@@ -204,6 +202,9 @@ export default function ServicesPage() {
                     <img
                       src={service.imageUrl}
                       alt={service.title}
+                      width={0}
+                      height={0}
+                      referrerPolicy='origin-when-cross-origin'
                       className="w-12 h-12 rounded-lg object-cover"
                     />
                   ) : (
@@ -243,8 +244,8 @@ export default function ServicesPage() {
                 </div>
                 <span
                   className={`px-2 py-0.5 rounded text-xs font-medium ${service.isActive
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800'
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-800'
                     }`}
                 >
                   {service.isActive ? 'Active' : 'Inactive'}

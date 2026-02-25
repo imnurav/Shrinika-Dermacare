@@ -1,11 +1,30 @@
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { UpdateBookingStatusDto } from '../booking/dto/update-booking-status.dto';
-import { Controller, Get, Put, Param, Query, Body, Post, UseInterceptors, UploadedFile } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Put,
+  Param,
+  Query,
+  Body,
+  Post,
+  UseInterceptors,
+  UploadedFile,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BookingResponseDto } from '../booking/dto/booking-response.dto';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { GetBookingsQueryDto } from '../booking/dto/get-bookings-query.dto';
+import { GetUsersQueryDto } from './dto/get-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateBookingDto } from '../booking/dto/update-booking.dto';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -24,6 +43,12 @@ export class AdminController {
 
   @Get('bookings')
   @ApiOperation({ summary: 'Get all bookings (Admin only)' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by person name or phone',
+  })
   @ApiQuery({ name: 'status', required: false, enum: BookingStatus })
   @ApiQuery({ name: 'startDate', required: false, type: String, description: 'YYYY-MM-DD format' })
   @ApiQuery({ name: 'endDate', required: false, type: String, description: 'YYYY-MM-DD format' })
@@ -33,8 +58,16 @@ export class AdminController {
     type: [BookingResponseDto],
   })
   async getAllBookings(@Query() query?: GetBookingsQueryDto) {
-    const paginationDto: PaginationDto | undefined = query ? { page: query.page, limit: query.limit } : undefined;
-    return this.adminService.getAllBookings(paginationDto, query?.status, query?.startDate, query?.endDate);
+    const paginationDto: PaginationDto | undefined = query
+      ? { page: query.page, limit: query.limit }
+      : undefined;
+    return this.adminService.getAllBookings(
+      paginationDto,
+      query?.status,
+      query?.startDate,
+      query?.endDate,
+      query?.search,
+    );
   }
 
   @Get('bookings/:id')
@@ -66,17 +99,33 @@ export class AdminController {
 
   @Put('bookings/:id')
   @ApiOperation({ summary: 'Update booking details (Admin only)' })
-  @ApiResponse({ status: 200, description: 'Booking updated successfully', type: BookingResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking updated successfully',
+    type: BookingResponseDto,
+  })
   @ApiResponse({ status: 404, description: 'Booking not found', type: ErrorResponseDto })
-  async updateBookingByAdmin(@Param('id') bookingId: string, @Body() updateBookingDto: UpdateBookingDto) {
+  async updateBookingByAdmin(
+    @Param('id') bookingId: string,
+    @Body() updateBookingDto: UpdateBookingDto,
+  ) {
     return this.adminService.updateBookingByAdmin(bookingId, updateBookingDto);
   }
 
   @Get('users')
   @ApiOperation({ summary: 'Get all users (Admin only)' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by name, email, or phone',
+  })
   @ApiResponse({ status: 200, description: 'Users retrieved successfully' })
-  async getAllUsers(@Query() paginationDto?: PaginationDto) {
-    return this.adminService.getAllUsers(paginationDto);
+  async getAllUsers(@Query() query?: GetUsersQueryDto) {
+    const paginationDto: PaginationDto | undefined = query
+      ? { page: query.page, limit: query.limit }
+      : undefined;
+    return this.adminService.getAllUsers(paginationDto, query?.search);
   }
 
   @Get('users/:id')
@@ -105,7 +154,11 @@ export class AdminController {
   })
   @ApiOperation({ summary: 'Create user (Admin/Superadmin)' })
   @ApiResponse({ status: 201, description: 'User created successfully' })
-  async createUser(@CurrentUser() actor: any, @Body() createUserDto: CreateUserDto, @UploadedFile() file?: Express.Multer.File) {
+  async createUser(
+    @CurrentUser() actor: any,
+    @Body() createUserDto: CreateUserDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
     return this.adminService.createUser(actor, createUserDto, file);
   }
 
@@ -127,7 +180,12 @@ export class AdminController {
   @ApiOperation({ summary: 'Update user (Admin only)' })
   @ApiResponse({ status: 200, description: 'User updated successfully' })
   @ApiResponse({ status: 404, description: 'User not found', type: ErrorResponseDto })
-  async updateUser(@CurrentUser() actor: any, @Param('id') userId: string, @Body() updateUserDto: UpdateUserDto, @UploadedFile() file?: Express.Multer.File) {
+  async updateUser(
+    @CurrentUser() actor: any,
+    @Param('id') userId: string,
+    @Body() updateUserDto: UpdateUserDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
     return this.adminService.updateUser(actor, userId, updateUserDto, file);
   }
 }

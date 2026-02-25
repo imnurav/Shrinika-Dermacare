@@ -6,11 +6,12 @@ export const bookingsService = {
     status?: BookingStatus,
     startDate?: string,
     endDate?: string,
+    search?: string,
     page = 1,
     limit = 10
   ): Promise<PaginatedResponse<Booking> | Booking[]> => {
     const response = await api.get('/admin/bookings', {
-      params: { status, startDate, endDate, page, limit },
+      params: { status, startDate, endDate, search, page, limit },
     });
     return response.data;
   },

@@ -2,9 +2,9 @@ import { User, PaginatedResponse } from '../types';
 import api from '../api';
 
 export const usersService = {
-  getAllUsers: async (page = 1, limit = 10): Promise<PaginatedResponse<User> | User[]> => {
+  getAllUsers: async (search?: string, page = 1, limit = 10): Promise<PaginatedResponse<User> | User[]> => {
     const response = await api.get('/admin/users', {
-      params: { page, limit },
+      params: { search, page, limit },
     });
     return response.data;
   },
