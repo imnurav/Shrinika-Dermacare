@@ -1,4 +1,4 @@
-import { BookingStatus } from '@prisma/client';
+import { BookingStatus } from '../entities/booking.entity';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum } from 'class-validator';
 

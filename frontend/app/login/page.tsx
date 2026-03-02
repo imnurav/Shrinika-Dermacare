@@ -1,7 +1,7 @@
 'use client';
 import ErrorMessage from '@/components/common/ErrorMessage';
 import { getErrorMessage } from '@/lib/utils/errorHandler';
-import { LogIn, Mail, Lock, Phone } from 'lucide-react';
+import { LogIn, Mail, Lock, Phone, Eye, EyeOff } from 'lucide-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { authService } from '@/lib/services/auth';
 import { useRouter } from 'next/navigation';
@@ -25,6 +25,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
@@ -114,10 +115,18 @@ export default function LoginPage() {
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 opacity-100" />
                 <input
                   {...register('password')}
-                  type="password"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 bg-white"
+                  type={showPassword ? 'text' : 'password'}
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 bg-white"
                   placeholder="Enter your password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
@@ -147,4 +156,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

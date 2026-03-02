@@ -9,25 +9,24 @@ type Props = {
 };
 
 export default function Pagination({ page, setPage, totalPages, totalItems, limit = 10, className = '' }: Props) {
-    if (totalItems === 0) {
-        return <div className="text-sm text-gray-600">No items</div>;
-    }
-
-    const start = (page - 1) * limit + 1;
-    const end = Math.min(page * limit, totalItems);
+    const safeTotalPages = Math.max(1, totalPages || 1);
+    const start = totalItems === 0 ? 0 : (page - 1) * limit + 1;
+    const end = totalItems === 0 ? 0 : Math.min(page * limit, totalItems);
 
     return (
-        <div className={`flex items-center justify-between mt-4 ${className}`}>
+        <div
+            className={`mt-4 flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 ${className}`}
+        >
             <div className="text-sm text-gray-600">Showing {start} - {end} of {totalItems}</div>
             <div className="flex items-center gap-2">
                 <button
                     onClick={() => setPage(Math.max(1, page - 1))}
                     disabled={page <= 1}
-                    className={`px-3 cursor-pointer py-1 rounded ${page <= 1 ? 'bg-gray-100 text-gray-400' : 'bg-white border'}`}
+                    className="rounded border border-slate-300 bg-white px-3 py-1 text-slate-700 disabled:cursor-not-allowed"
                 >Prev</button>
 
                 <div className="flex items-center gap-1">
-                    {Array.from({ length: totalPages }).map((_, idx) => (
+                    {Array.from({ length: safeTotalPages }).map((_, idx) => (
                         <button
                             key={idx}
                             onClick={() => setPage(idx + 1)}
@@ -37,9 +36,9 @@ export default function Pagination({ page, setPage, totalPages, totalItems, limi
                 </div>
 
                 <button
-                    onClick={() => setPage(Math.min(totalPages, page + 1))}
-                    disabled={page >= totalPages}
-                    className={`px-3 py-1 cursor-pointer rounded ${page >= totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white border'}`}
+                    onClick={() => setPage(Math.min(safeTotalPages, page + 1))}
+                    disabled={page >= safeTotalPages}
+                    className="rounded border border-slate-300 bg-white px-3 py-1 text-slate-700 disabled:cursor-not-allowed"
                 >Next</button>
             </div>
         </div>

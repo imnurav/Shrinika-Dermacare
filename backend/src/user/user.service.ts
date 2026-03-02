@@ -3,14 +3,24 @@ import { AddressResponseDto } from './dto/address-response.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
-import { PrismaService } from '../prisma/prisma.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Address } from './entities/address.entity';
+import { User } from './entities/user.entity';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UserService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(Address)
+    private readonly addressRepository: Repository<Address>,
+  ) {}
 
   async getProfile(userId: string) {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.userRepository.findOne({
       where: { id: userId },
       select: {
         id: true,
@@ -32,7 +42,7 @@ export class UserService {
   }
 
   async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {
-    const updateData: any = {};
+    const updateData: Partial<User> = {};
 
     if (updateProfileDto.name) {
       updateData.name = updateProfileDto.name;
@@ -40,7 +50,7 @@ export class UserService {
 
     if (updateProfileDto.email) {
       // Check if email is already taken by another user
-      const existingUser = await this.prisma.user.findUnique({
+      const existingUser = await this.userRepository.findOne({
         where: { email: updateProfileDto.email },
       });
       if (existingUser && existingUser.id !== userId) {
@@ -51,7 +61,7 @@ export class UserService {
 
     if (updateProfileDto.phone) {
       // Check if phone is already taken by another user
-      const existingUser = await this.prisma.user.findUnique({
+      const existingUser = await this.userRepository.findOne({
         where: { phone: updateProfileDto.phone },
       });
       if (existingUser && existingUser.id !== userId) {
@@ -64,9 +74,15 @@ export class UserService {
       updateData.imageUrl = updateProfileDto.imageUrl;
     }
 
-    const user = await this.prisma.user.update({
+    const existingUser = await this.userRepository.findOne({ where: { id: userId } });
+    if (!existingUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.userRepository.update({ id: userId }, updateData);
+
+    return this.userRepository.findOne({
       where: { id: userId },
-      data: updateData,
       select: {
         id: true,
         name: true,
@@ -78,14 +94,33 @@ export class UserService {
         updatedAt: true,
       },
     });
+  }
 
-    return user;
+  async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      select: { id: true, password: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const isCurrentPasswordValid = await bcrypt.compare(changePasswordDto.currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
+      throw new ForbiddenException('Current password is incorrect');
+    }
+
+    const hashed = await bcrypt.hash(changePasswordDto.newPassword, 10);
+    await this.userRepository.update({ id: userId }, { password: hashed });
+
+    return { success: true };
   }
 
   async getAddresses(userId: string): Promise<AddressResponseDto[]> {
-    const addresses = await this.prisma.address.findMany({
+    const addresses = await this.addressRepository.find({
       where: { userId },
-      orderBy: { createdAt: 'desc' },
+      order: { createdAt: 'DESC' },
     });
 
     return addresses;
@@ -95,14 +130,12 @@ export class UserService {
     userId: string,
     createAddressDto: CreateAddressDto,
   ): Promise<AddressResponseDto> {
-    const address = await this.prisma.address.create({
-      data: {
+    return this.addressRepository.save(
+      this.addressRepository.create({
         ...createAddressDto,
         userId,
-      },
-    });
-
-    return address;
+      }),
+    );
   }
 
   async updateAddress(
@@ -111,9 +144,7 @@ export class UserService {
     updateAddressDto: UpdateAddressDto,
   ): Promise<AddressResponseDto> {
     // Verify address belongs to user
-    const address = await this.prisma.address.findUnique({
-      where: { id: addressId },
-    });
+    const address = await this.addressRepository.findOne({ where: { id: addressId } });
 
     if (!address) {
       throw new NotFoundException('Address not found');
@@ -123,19 +154,15 @@ export class UserService {
       throw new ForbiddenException('You do not have permission to update this address');
     }
 
-    const updatedAddress = await this.prisma.address.update({
-      where: { id: addressId },
-      data: updateAddressDto,
-    });
+    await this.addressRepository.update({ id: addressId }, updateAddressDto);
+    const updatedAddress = await this.addressRepository.findOne({ where: { id: addressId } });
 
-    return updatedAddress;
+    return updatedAddress as AddressResponseDto;
   }
 
   async deleteAddress(userId: string, addressId: string): Promise<void> {
     // Verify address belongs to user
-    const address = await this.prisma.address.findUnique({
-      where: { id: addressId },
-    });
+    const address = await this.addressRepository.findOne({ where: { id: addressId } });
 
     if (!address) {
       throw new NotFoundException('Address not found');
@@ -145,8 +172,6 @@ export class UserService {
       throw new ForbiddenException('You do not have permission to delete this address');
     }
 
-    await this.prisma.address.delete({
-      where: { id: addressId },
-    });
+    await this.addressRepository.delete({ id: addressId });
   }
 }

@@ -1,12 +1,13 @@
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { ApiPaginationQuery, Pagination } from '../common/decorators/pagination.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { BookingResponseDto } from './dto/booking-response.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { GetBookingsQueryDto } from './dto/get-bookings-query.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { BookingService } from './booking.service';
-import { BookingStatus } from '@prisma/client';
+import { BookingStatus } from './entities/booking.entity';
 import {
   Controller,
   HttpStatus,
@@ -44,15 +45,17 @@ export class BookingController {
   @Get()
   @ApiOperation({ summary: 'Get current user bookings' })
   @ApiQuery({ name: 'status', required: false, enum: BookingStatus })
+  @ApiPaginationQuery()
   @ApiResponse({
     status: 200,
     description: 'Bookings retrieved successfully',
     type: [BookingResponseDto],
   })
-  async getUserBookings(@CurrentUser() user: any, @Query() query?: GetBookingsQueryDto) {
-    const paginationDto: PaginationDto | undefined = query
-      ? { page: query.page, limit: query.limit }
-      : undefined;
+  async getUserBookings(
+    @CurrentUser() user: any,
+    @Query() query?: GetBookingsQueryDto,
+    @Pagination() paginationDto?: PaginationDto,
+  ) {
     return this.bookingService.getUserBookings(user.id, paginationDto, query?.status);
   }
 

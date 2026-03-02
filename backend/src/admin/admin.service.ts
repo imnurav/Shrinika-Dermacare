@@ -1,19 +1,75 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { UpdateBookingStatusDto } from '../booking/dto/update-booking-status.dto';
+import { DashboardAnalyticsDto } from './dto/dashboard-analytics.dto';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { BookingResponseDto } from '../booking/dto/booking-response.dto';
 import { BookingService } from '../booking/booking.service';
 import { UploadService } from '../upload/upload.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { BookingStatus, UserRole } from '@prisma/client';
+import { Booking, BookingStatus } from '../booking/entities/booking.entity';
+import { Category } from '../catalog/entities/category.entity';
+import { Service } from '../catalog/entities/service.entity';
+import { User, UserRole } from '../user/entities/user.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class AdminService {
   constructor(
-    private prisma: PrismaService,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(Booking)
+    private readonly bookingRepository: Repository<Booking>,
+    @InjectRepository(Category)
+    private readonly categoryRepository: Repository<Category>,
+    @InjectRepository(Service)
+    private readonly serviceRepository: Repository<Service>,
     private bookingService: BookingService,
     private uploadService: UploadService,
   ) {}
+
+  async getDashboardAnalytics(): Promise<DashboardAnalyticsDto> {
+    const [totalUsers, totalCategories, totalServices, totalBookings, statusRows, recentBookings] =
+      await Promise.all([
+        this.userRepository.count(),
+        this.categoryRepository.count(),
+        this.serviceRepository.count(),
+        this.bookingRepository.count(),
+        this.bookingRepository
+          .createQueryBuilder('booking')
+          .select('booking.status', 'status')
+          .addSelect('COUNT(*)', 'count')
+          .groupBy('booking.status')
+          .getRawMany<{ status: BookingStatus; count: string }>(),
+        this.bookingRepository.find({
+          select: ['id', 'personName', 'status', 'preferredDate', 'createdAt'],
+          order: { createdAt: 'DESC' },
+          take: 6,
+        }),
+      ]);
+
+    const statusCounts = {
+      [BookingStatus.PENDING]: 0,
+      [BookingStatus.CONFIRMED]: 0,
+      [BookingStatus.COMPLETED]: 0,
+      [BookingStatus.CANCELLED]: 0,
+    };
+
+    for (const row of statusRows) {
+      statusCounts[row.status] = Number(row.count);
+    }
+
+    return {
+      totalBookings,
+      pendingBookings: statusCounts[BookingStatus.PENDING],
+      confirmedBookings: statusCounts[BookingStatus.CONFIRMED],
+      completedBookings: statusCounts[BookingStatus.COMPLETED],
+      cancelledBookings: statusCounts[BookingStatus.CANCELLED],
+      totalCategories,
+      totalServices,
+      totalUsers,
+      recentBookings,
+    };
+  }
 
   async getAllBookings(
     paginationDto?: PaginationDto,
@@ -41,14 +97,24 @@ export class AdminService {
     paginationDto?: PaginationDto,
     search?: string,
   ): Promise<PaginatedResponse<any> | any[]> {
-    const where: any = {};
+    const query = this.userRepository
+      .createQueryBuilder('user')
+      .select([
+        'user.id',
+        'user.name',
+        'user.email',
+        'user.phone',
+        'user.imageUrl',
+        'user.role',
+        'user.createdAt',
+        'user.updatedAt',
+      ])
+      .orderBy('user.createdAt', 'DESC');
 
     if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search, mode: 'insensitive' } },
-      ];
+      query.where('(user.name ILIKE :search OR user.email ILIKE :search OR user.phone ILIKE :search)', {
+        search: `%${search}%`,
+      });
     }
 
     if (paginationDto) {
@@ -56,25 +122,7 @@ export class AdminService {
       const limit = paginationDto.limit || 10;
       const skip = (page - 1) * limit;
 
-      const [data, total] = await Promise.all([
-        this.prisma.user.findMany({
-          where,
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            imageUrl: true,
-            role: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: limit,
-        }),
-        this.prisma.user.count({ where }),
-      ]);
+      const [data, total] = await query.skip(skip).take(limit).getManyAndCount();
 
       return {
         data,
@@ -87,36 +135,17 @@ export class AdminService {
       };
     }
 
-    const users = await this.prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        imageUrl: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return users;
+    return query.getMany();
   }
 
   async getUserById(userId: string) {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.userRepository.findOne({
       where: { id: userId },
-      include: {
+      relations: {
         addresses: true,
         bookings: {
-          include: {
-            bookingServices: {
-              include: {
-                service: true,
-              },
-            },
+          bookingServices: {
+            service: true,
           },
         },
       },
@@ -130,7 +159,7 @@ export class AdminService {
   }
 
   async updateUser(actor: any, userId: string, updateUserDto: any, file?: Express.Multer.File) {
-    const existing = await this.prisma.user.findUnique({ where: { id: userId } });
+    const existing = await this.userRepository.findOne({ where: { id: userId } });
     if (!existing) {
       throw new NotFoundException('User not found');
     }
@@ -179,8 +208,8 @@ export class AdminService {
     }
     if (updateUserDto.role !== undefined) data.role = updateUserDto.role;
 
-    const updated = await this.prisma.user.update({ where: { id: userId }, data });
-    return updated;
+    await this.userRepository.update({ id: userId }, data);
+    return this.userRepository.findOne({ where: { id: userId } });
   }
 
   async createUser(actor: any, createUserDto: any, file?: Express.Multer.File) {
@@ -190,7 +219,7 @@ export class AdminService {
     }
 
     // Determine role for new user
-    const roleToAssign = createUserDto.role ?? 'USER';
+    const roleToAssign = createUserDto.role ?? UserRole.USER;
 
     if (actorRole === UserRole.SUPERADMIN) {
       // allowed to assign any role
@@ -205,13 +234,13 @@ export class AdminService {
 
     // Check unique constraints
     if (createUserDto.email) {
-      const existingEmail = await this.prisma.user.findUnique({
+      const existingEmail = await this.userRepository.findOne({
         where: { email: createUserDto.email },
       });
       if (existingEmail) throw new ForbiddenException('Email already in use');
     }
     if (createUserDto.phone) {
-      const existingPhone = await this.prisma.user.findUnique({
+      const existingPhone = await this.userRepository.findOne({
         where: { phone: createUserDto.phone },
       });
       if (existingPhone) throw new ForbiddenException('Phone already in use');
@@ -226,30 +255,62 @@ export class AdminService {
       imageUrl = await this.uploadService.saveFile(file, 'users');
     }
 
-    const created = await this.prisma.user.create({
-      data: {
+    const created = await this.userRepository.save(
+      this.userRepository.create({
         name: createUserDto.name,
         email: createUserDto.email,
         phone: createUserDto.phone,
         password: hashed,
         imageUrl,
         role: roleToAssign,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        imageUrl: true,
-        role: true,
-      },
-    });
+      }),
+    );
 
-    return created;
+    return {
+      id: created.id,
+      name: created.name,
+      email: created.email,
+      phone: created.phone,
+      imageUrl: created.imageUrl,
+      role: created.role,
+    };
   }
 
   async updateBookingByAdmin(bookingId: string, updateBookingDto: any) {
     // Delegate to booking service which owns booking logic
     return this.bookingService.updateBookingAsAdmin(bookingId, updateBookingDto);
+  }
+
+  async deleteUser(actor: any, userId: string): Promise<void> {
+    const actorRole = actor?.role;
+    if (!actorRole) {
+      throw new ForbiddenException('Unauthorized');
+    }
+
+    const target = await this.userRepository.findOne({ where: { id: userId } });
+    if (!target) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (actor?.id === userId) {
+      throw new ForbiddenException('You cannot delete your own account');
+    }
+
+    if (actorRole === UserRole.SUPERADMIN) {
+      // SUPERADMIN can delete any non-self account
+      await this.userRepository.delete({ id: userId });
+      return;
+    }
+
+    if (actorRole === UserRole.ADMIN) {
+      // ADMIN can delete only regular users
+      if (target.role !== UserRole.USER) {
+        throw new ForbiddenException('Admin can delete only USER accounts');
+      }
+      await this.userRepository.delete({ id: userId });
+      return;
+    }
+
+    throw new ForbiddenException('You do not have permission to delete users');
   }
 }

@@ -2,18 +2,86 @@ import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 import { BookingResponseDto } from './dto/booking-response.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
-import { PrismaService } from '../prisma/prisma.service';
-import { BookingStatus } from '@prisma/client';
+import { BookingStatus, Booking } from './entities/booking.entity';
+import { BookingService as BookingServiceEntity } from './entities/booking-service.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Address } from '../user/entities/address.entity';
+import { Service } from '../catalog/entities/service.entity';
 import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
   Injectable,
 } from '@nestjs/common';
+import { DataSource, In, Repository } from 'typeorm';
 
 @Injectable()
 export class BookingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(Booking)
+    private readonly bookingRepository: Repository<Booking>,
+    @InjectRepository(Address)
+    private readonly addressRepository: Repository<Address>,
+    @InjectRepository(Service)
+    private readonly serviceRepository: Repository<Service>,
+    @InjectRepository(BookingServiceEntity)
+    private readonly bookingServiceRepository: Repository<BookingServiceEntity>,
+    private readonly dataSource: DataSource,
+  ) {}
+
+  private readonly bookingRelations = {
+    address: true,
+    bookingServices: { service: { category: true } },
+  } as const;
+
+  private parseTimeToMinutes(value: string): number | null {
+    const normalized = value.trim().toUpperCase();
+    const amPmMatch = normalized.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+    if (amPmMatch) {
+      const hour = Number(amPmMatch[1]);
+      const minute = Number(amPmMatch[2]);
+      const amPm = amPmMatch[3];
+      if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return null;
+      const hour24 = amPm === 'AM' ? (hour === 12 ? 0 : hour) : hour === 12 ? 12 : hour + 12;
+      return hour24 * 60 + minute;
+    }
+
+    const hmsMatch = normalized.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (hmsMatch) {
+      const hour = Number(hmsMatch[1]);
+      const minute = Number(hmsMatch[2]);
+      if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+      return hour * 60 + minute;
+    }
+
+    return null;
+  }
+
+  private validatePreferredSlot(preferredDate: string, preferredTime: string): void {
+    const slotDate = new Date(preferredDate);
+    if (Number.isNaN(slotDate.getTime())) {
+      throw new BadRequestException('Invalid preferred date');
+    }
+
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const slotDateIso = slotDate.toISOString().slice(0, 10);
+
+    if (slotDateIso < today) {
+      throw new BadRequestException('Preferred date cannot be in the past');
+    }
+
+    if (slotDateIso === today) {
+      const slotMinutes = this.parseTimeToMinutes(preferredTime);
+      if (slotMinutes === null) {
+        throw new BadRequestException('Invalid preferred time format');
+      }
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      if (slotMinutes < nowMinutes) {
+        throw new BadRequestException('Preferred time cannot be in the past');
+      }
+    }
+  }
 
   async createBooking(
     userId: string,
@@ -22,8 +90,10 @@ export class BookingService {
     const { serviceIds, addressId, preferredDate, preferredTime, personName, personPhone, notes } =
       createBookingDto;
 
+    this.validatePreferredSlot(preferredDate, preferredTime);
+
     // Verify address belongs to user
-    const address = await this.prisma.address.findUnique({
+    const address = await this.addressRepository.findOne({
       where: { id: addressId },
     });
 
@@ -36,9 +106,9 @@ export class BookingService {
     }
 
     // Verify all services exist and are active
-    const services = await this.prisma.service.findMany({
+    const services = await this.serviceRepository.find({
       where: {
-        id: { in: serviceIds },
+        id: In(serviceIds),
         isActive: true,
       },
     });
@@ -47,9 +117,8 @@ export class BookingService {
       throw new NotFoundException('One or more services not found or inactive');
     }
 
-    // Create booking with services
-    const booking = await this.prisma.booking.create({
-      data: {
+    const bookingId = await this.dataSource.transaction(async (manager) => {
+      const booking = manager.create(Booking, {
         userId,
         addressId,
         personName,
@@ -58,24 +127,24 @@ export class BookingService {
         preferredTime,
         notes,
         status: BookingStatus.PENDING,
-        bookingServices: {
-          create: serviceIds.map((serviceId) => ({
-            serviceId,
-          })),
-        },
-      },
-      include: {
-        address: true,
-        bookingServices: {
-          include: {
-            service: {
-              include: {
-                category: true,
-              },
-            },
-          },
-        },
-      },
+      });
+
+      const createdBooking = await manager.save(Booking, booking);
+
+      const bookingServices = serviceIds.map((serviceId) =>
+        manager.create(BookingServiceEntity, {
+          bookingId: createdBooking.id,
+          serviceId,
+        }),
+      );
+      await manager.save(BookingServiceEntity, bookingServices);
+
+      return createdBooking.id;
+    });
+
+    const booking = await this.bookingRepository.findOne({
+      where: { id: bookingId },
+      relations: this.bookingRelations,
     });
 
     return booking as BookingResponseDto;
@@ -85,13 +154,14 @@ export class BookingService {
     bookingId: string,
     updateBookingDto: any,
   ): Promise<BookingResponseDto> {
-    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+    const booking = await this.bookingRepository.findOne({ where: { id: bookingId } });
 
     if (!booking) {
       throw new NotFoundException('Booking not found');
     }
 
-    const data: any = {};
+    const data: Partial<Booking> = {};
+    const manualOverride = Boolean(updateBookingDto.manualOverride);
 
     if (updateBookingDto.personName !== undefined) data.personName = updateBookingDto.personName;
     if (updateBookingDto.personPhone !== undefined) data.personPhone = updateBookingDto.personPhone;
@@ -101,9 +171,20 @@ export class BookingService {
     if (updateBookingDto.preferredDate !== undefined)
       data.preferredDate = new Date(updateBookingDto.preferredDate);
 
+    const effectiveDate =
+      updateBookingDto.preferredDate !== undefined
+        ? updateBookingDto.preferredDate
+        : booking.preferredDate.toISOString().slice(0, 10);
+    const effectiveTime =
+      updateBookingDto.preferredTime !== undefined ? updateBookingDto.preferredTime : booking.preferredTime;
+
+    if (!manualOverride && (updateBookingDto.preferredDate !== undefined || updateBookingDto.preferredTime !== undefined)) {
+      this.validatePreferredSlot(effectiveDate, effectiveTime);
+    }
+
     // If addressId provided, verify it exists
     if (updateBookingDto.addressId !== undefined) {
-      const address = await this.prisma.address.findUnique({
+      const address = await this.addressRepository.findOne({
         where: { id: updateBookingDto.addressId },
       });
       if (!address) {
@@ -112,28 +193,28 @@ export class BookingService {
       data.addressId = updateBookingDto.addressId;
     }
 
-    // If serviceIds provided, replace bookingServices
-    const bookingUpdate: any = {
+    await this.dataSource.transaction(async (manager) => {
+      if (Object.keys(data).length > 0) {
+        await manager.update(Booking, { id: bookingId }, data);
+      }
+
+      if (updateBookingDto.serviceIds !== undefined) {
+        await manager.delete(BookingServiceEntity, { bookingId });
+
+        const bookingServices = updateBookingDto.serviceIds.map((serviceId: string) =>
+          manager.create(BookingServiceEntity, { bookingId, serviceId }),
+        );
+
+        if (bookingServices.length > 0) {
+          await manager.save(BookingServiceEntity, bookingServices);
+        }
+      }
+    });
+
+    const updated = await this.bookingRepository.findOne({
       where: { id: bookingId },
-      include: {
-        address: true,
-        bookingServices: { include: { service: { include: { category: true } } } },
-      },
-    };
-
-    if (updateBookingDto.serviceIds !== undefined) {
-      bookingUpdate['data'] = {
-        ...data,
-        bookingServices: {
-          deleteMany: {},
-          create: updateBookingDto.serviceIds.map((serviceId: string) => ({ serviceId })),
-        },
-      };
-    } else {
-      bookingUpdate['data'] = data;
-    }
-
-    const updated = await this.prisma.booking.update(bookingUpdate as any);
+      relations: this.bookingRelations,
+    });
     return updated as BookingResponseDto;
   }
 
@@ -142,35 +223,25 @@ export class BookingService {
     paginationDto?: PaginationDto,
     status?: BookingStatus,
   ): Promise<PaginatedResponse<BookingResponseDto> | BookingResponseDto[]> {
-    const where: any = { userId };
-    if (status) where.status = status;
+    const query = this.bookingRepository
+      .createQueryBuilder('booking')
+      .leftJoinAndSelect('booking.address', 'address')
+      .leftJoinAndSelect('booking.bookingServices', 'bookingService')
+      .leftJoinAndSelect('bookingService.service', 'service')
+      .leftJoinAndSelect('service.category', 'category')
+      .where('booking.userId = :userId', { userId })
+      .orderBy('booking.createdAt', 'DESC');
+
+    if (status) {
+      query.andWhere('booking.status = :status', { status });
+    }
 
     if (paginationDto) {
       const page = paginationDto.page || 1;
       const limit = paginationDto.limit || 10;
       const skip = (page - 1) * limit;
 
-      const [data, total] = await Promise.all([
-        this.prisma.booking.findMany({
-          where,
-          include: {
-            address: true,
-            bookingServices: {
-              include: {
-                service: {
-                  include: {
-                    category: true,
-                  },
-                },
-              },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: limit,
-        }),
-        this.prisma.booking.count({ where }),
-      ]);
+      const [data, total] = await query.skip(skip).take(limit).getManyAndCount();
 
       return {
         data,
@@ -183,24 +254,7 @@ export class BookingService {
       };
     }
 
-    const bookings = await this.prisma.booking.findMany({
-      where,
-      include: {
-        address: true,
-        bookingServices: {
-          include: {
-            service: {
-              include: {
-                category: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return bookings;
+    return query.getMany();
   }
 
   async getBookingById(
@@ -208,20 +262,9 @@ export class BookingService {
     bookingId: string,
     isAdmin = false,
   ): Promise<BookingResponseDto> {
-    const booking = await this.prisma.booking.findUnique({
+    const booking = await this.bookingRepository.findOne({
       where: { id: bookingId },
-      include: {
-        address: true,
-        bookingServices: {
-          include: {
-            service: {
-              include: {
-                category: true,
-              },
-            },
-          },
-        },
-      },
+      relations: this.bookingRelations,
     });
 
     if (!booking) {
@@ -237,7 +280,7 @@ export class BookingService {
   }
 
   async cancelBooking(userId: string, bookingId: string): Promise<BookingResponseDto> {
-    const booking = await this.prisma.booking.findUnique({
+    const booking = await this.bookingRepository.findOne({
       where: { id: bookingId },
     });
 
@@ -254,31 +297,19 @@ export class BookingService {
       throw new BadRequestException('Only pending bookings can be cancelled by users');
     }
 
-    const updatedBooking = await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: { status: BookingStatus.CANCELLED },
-      include: {
-        address: true,
-        bookingServices: {
-          include: {
-            service: {
-              include: {
-                category: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    await this.bookingRepository.update({ id: bookingId }, { status: BookingStatus.CANCELLED });
 
-    return updatedBooking as BookingResponseDto;
+    return (await this.bookingRepository.findOne({
+      where: { id: bookingId },
+      relations: this.bookingRelations,
+    })) as BookingResponseDto;
   }
 
   async updateBookingStatus(
     bookingId: string,
     updateBookingStatusDto: UpdateBookingStatusDto,
   ): Promise<BookingResponseDto> {
-    const booking = await this.prisma.booking.findUnique({
+    const booking = await this.bookingRepository.findOne({
       where: { id: bookingId },
     });
 
@@ -286,24 +317,15 @@ export class BookingService {
       throw new NotFoundException('Booking not found');
     }
 
-    const updatedBooking = await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: { status: updateBookingStatusDto.status },
-      include: {
-        address: true,
-        bookingServices: {
-          include: {
-            service: {
-              include: {
-                category: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    await this.bookingRepository.update(
+      { id: bookingId },
+      { status: updateBookingStatusDto.status },
+    );
 
-    return updatedBooking as BookingResponseDto;
+    return (await this.bookingRepository.findOne({
+      where: { id: bookingId },
+      relations: this.bookingRelations,
+    })) as BookingResponseDto;
   }
 
   async getAllBookings(
@@ -313,27 +335,34 @@ export class BookingService {
     endDate?: string,
     search?: string,
   ): Promise<PaginatedResponse<BookingResponseDto> | BookingResponseDto[]> {
-    const where: any = {};
+    const query = this.bookingRepository
+      .createQueryBuilder('booking')
+      .leftJoinAndSelect('booking.address', 'address')
+      .leftJoinAndSelect('booking.bookingServices', 'bookingService')
+      .leftJoinAndSelect('bookingService.service', 'service')
+      .leftJoinAndSelect('service.category', 'category')
+      .orderBy('booking.createdAt', 'DESC');
 
     if (search) {
-      where.OR = [
-        { personName: { contains: search, mode: 'insensitive' } },
-        { personPhone: { contains: search, mode: 'insensitive' } },
-      ];
+      query.andWhere('(booking.personName ILIKE :search OR booking.personPhone ILIKE :search)', {
+        search: `%${search}%`,
+      });
     }
 
     if (status) {
-      where.status = status;
+      query.andWhere('booking.status = :status', { status });
     }
 
-    if (startDate || endDate) {
-      where.preferredDate = {};
-      if (startDate) {
-        where.preferredDate.gte = new Date(startDate);
-      }
-      if (endDate) {
-        where.preferredDate.lte = new Date(endDate);
-      }
+    if (startDate) {
+      query.andWhere('booking.preferredDate >= :startDate', {
+        startDate: new Date(startDate),
+      });
+    }
+
+    if (endDate) {
+      query.andWhere('booking.preferredDate <= :endDate', {
+        endDate: new Date(endDate),
+      });
     }
 
     if (paginationDto) {
@@ -341,27 +370,7 @@ export class BookingService {
       const limit = paginationDto.limit || 10;
       const skip = (page - 1) * limit;
 
-      const [data, total] = await Promise.all([
-        this.prisma.booking.findMany({
-          where,
-          include: {
-            address: true,
-            bookingServices: {
-              include: {
-                service: {
-                  include: {
-                    category: true,
-                  },
-                },
-              },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: limit,
-        }),
-        this.prisma.booking.count({ where }),
-      ]);
+      const [data, total] = await query.skip(skip).take(limit).getManyAndCount();
 
       return {
         data,
@@ -374,23 +383,6 @@ export class BookingService {
       };
     }
 
-    const bookings = await this.prisma.booking.findMany({
-      where,
-      include: {
-        address: true,
-        bookingServices: {
-          include: {
-            service: {
-              include: {
-                category: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return bookings;
+    return query.getMany();
   }
 }

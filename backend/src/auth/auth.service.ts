@@ -1,16 +1,19 @@
 import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { AuthResponseDto, UserResponseDto } from './dto/auth-response.dto';
-import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { ConfigService } from '@nestjs/config';
 import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from '../user/entities/user.entity';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -20,18 +23,14 @@ export class AuthService {
 
     // Check if user already exists
     if (email) {
-      const existingUserByEmail = await this.prisma.user.findUnique({
-        where: { email },
-      });
+      const existingUserByEmail = await this.userRepository.findOne({ where: { email } });
       if (existingUserByEmail) {
         throw new ConflictException('User with this email already exists');
       }
     }
 
     if (phone) {
-      const existingUserByPhone = await this.prisma.user.findUnique({
-        where: { phone },
-      });
+      const existingUserByPhone = await this.userRepository.findOne({ where: { phone } });
       if (existingUserByPhone) {
         throw new ConflictException('User with this phone already exists');
       }
@@ -41,26 +40,27 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create user
-    const user = await this.prisma.user.create({
-      data: {
+    const createdUser = await this.userRepository.save(
+      this.userRepository.create({
         name,
         email,
         phone,
         password: hashedPassword,
         imageUrl,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        imageUrl: true,
-        role: true,
-      },
-    });
+      }),
+    );
+
+    const user: UserResponseDto = {
+      id: createdUser.id,
+      name: createdUser.name,
+      email: createdUser.email,
+      phone: createdUser.phone,
+      imageUrl: createdUser.imageUrl,
+      role: createdUser.role,
+    };
 
     // Generate JWT token
-    const accessToken = await this.generateToken(user.id, email, phone);
+    const accessToken = await this.generateToken(user.id, user.email, user.phone);
 
     return {
       accessToken,
@@ -76,7 +76,7 @@ export class AuthService {
     }
 
     // Find user
-    const user = await this.prisma.user.findUnique({
+    const user = await this.userRepository.findOne({
       where: email ? { email } : { phone },
     });
 

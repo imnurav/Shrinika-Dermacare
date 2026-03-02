@@ -9,7 +9,7 @@ export const bookingsService = {
     search?: string,
     page = 1,
     limit = 10
-  ): Promise<PaginatedResponse<Booking> | Booking[]> => {
+  ): Promise<PaginatedResponse<Booking>> => {
     const response = await api.get('/admin/bookings', {
       params: { status, startDate, endDate, search, page, limit },
     });
@@ -26,9 +26,11 @@ export const bookingsService = {
     return response.data;
   },
 
-  updateBooking: async (id: string, payload: Partial<Booking>): Promise<Booking> => {
+  updateBooking: async (
+    id: string,
+    payload: Partial<Booking> & { serviceIds?: string[]; manualOverride?: boolean },
+  ): Promise<Booking> => {
     const response = await api.put<Booking>(`/admin/bookings/${id}`, payload);
     return response.data;
   },
 };
-

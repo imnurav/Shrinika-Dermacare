@@ -1,6 +1,10 @@
-import { IsArray, IsISO8601, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsISO8601, IsOptional, IsString } from 'class-validator';
 
 export class UpdateBookingDto {
+  @IsOptional()
+  @IsBoolean()
+  manualOverride?: boolean;
+
   @IsOptional()
   @IsString()
   addressId?: string;

@@ -1,4 +1,10 @@
-import { Category, Service } from "../types";
+import {
+  Category,
+  CategoryOption,
+  PaginatedResponse,
+  Service,
+  ServiceOption,
+} from "../types";
 import api from "../api";
 
 export const catalogService = {
@@ -6,10 +12,17 @@ export const catalogService = {
   getCategories: async (
     search?: string,
     includeServices = false,
-  ): Promise<Category[]> => {
-    const response = await api.get<Category[]>("/catalog/categories", {
-      params: { search, includeServices },
+    page = 1,
+    limit = 10,
+  ): Promise<PaginatedResponse<Category>> => {
+    const response = await api.get<PaginatedResponse<Category>>("/catalog/categories", {
+      params: { search, includeServices, page, limit },
     });
+    return response.data;
+  },
+
+  getCategoryOptions: async (): Promise<CategoryOption[]> => {
+    const response = await api.get<CategoryOption[]>("/catalog/categories/options");
     return response.data;
   },
 
@@ -39,9 +52,18 @@ export const catalogService = {
   getServices: async (
     categoryId?: string,
     search?: string,
-  ): Promise<Service[]> => {
-    const response = await api.get<Service[]>("/catalog/services", {
-      params: { categoryId, search },
+    page = 1,
+    limit = 10,
+  ): Promise<PaginatedResponse<Service>> => {
+    const response = await api.get<PaginatedResponse<Service>>("/catalog/services", {
+      params: { categoryId, search, page, limit },
+    });
+    return response.data;
+  },
+
+  getServiceOptions: async (categoryId?: string): Promise<ServiceOption[]> => {
+    const response = await api.get<ServiceOption[]>("/catalog/services/options", {
+      params: { categoryId },
     });
     return response.data;
   },

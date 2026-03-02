@@ -1,4 +1,5 @@
 import ErrorBoundaryWrapper from "@/components/common/ErrorBoundaryWrapper";
+import { ToastProvider } from "@/components/common/ToastProvider";
 import { Geist, Geist_Mono } from "next/font/google";
 import type { Metadata } from "next";
 import "./globals.css";
@@ -29,7 +30,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ErrorBoundaryWrapper>
-          {children}
+          <ToastProvider>{children}</ToastProvider>
         </ErrorBoundaryWrapper>
       </body>
     </html>

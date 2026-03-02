@@ -22,6 +22,22 @@ export interface User {
   updatedAt?: string;
 }
 
+export interface Address {
+  id: string;
+  label: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface AdminUserDetail extends User {
+  addresses?: Address[];
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -30,6 +46,11 @@ export interface Category {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CategoryOption {
+  id: string;
+  name: string;
 }
 
 export interface Service {
@@ -44,6 +65,12 @@ export interface Service {
   createdAt: string;
   updatedAt: string;
   category?: Category;
+}
+
+export interface ServiceOption {
+  id: string;
+  title: string;
+  categoryId: string;
 }
 
 export interface Booking {
@@ -84,3 +111,20 @@ export interface PaginatedResponse<T> {
   };
 }
 
+export interface DashboardAnalytics {
+  totalBookings: number;
+  pendingBookings: number;
+  confirmedBookings: number;
+  completedBookings: number;
+  cancelledBookings: number;
+  totalCategories: number;
+  totalServices: number;
+  totalUsers: number;
+  recentBookings: Array<{
+    id: string;
+    personName: string;
+    status: BookingStatus;
+    preferredDate: string;
+    createdAt: string;
+  }>;
+}

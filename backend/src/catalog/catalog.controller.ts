@@ -1,9 +1,12 @@
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiPaginationQuery, Pagination } from '../common/decorators/pagination.decorator';
 import { GetCategoriesQueryDto } from './dto/get-categories-query.dto';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
+import { PaginatedResponse, PaginationDto } from '../common/dto/pagination.dto';
 import { GetServicesQueryDto } from './dto/get-services-query.dto';
 import { CategoryResponseDto } from './dto/category-response.dto';
 import { ServiceResponseDto } from './dto/service-response.dto';
+import { CategoryOptionDto, ServiceOptionDto } from './dto/options.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -11,7 +14,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { CatalogService } from './catalog.service';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '../user/entities/user.entity';
 import {
   Controller,
   HttpStatus,
@@ -46,14 +49,30 @@ export class CatalogController {
     type: String,
     description: 'Include services in response (true/false)',
   })
+  @ApiPaginationQuery()
   @ApiResponse({
     status: 200,
     description: 'Categories retrieved successfully',
     type: [CategoryResponseDto],
   })
-  async getCategories(@Query() query?: GetCategoriesQueryDto) {
+  async getCategories(
+    @Query() query?: GetCategoriesQueryDto,
+    @Pagination() paginationDto?: PaginationDto,
+  ) {
     const includeServices = query?.includeServices === 'true';
-    return this.catalogService.getCategories(query?.search, includeServices);
+    return this.catalogService.getCategories(query?.search, includeServices, paginationDto);
+  }
+
+  @Public()
+  @Get('categories/options')
+  @ApiOperation({ summary: 'Get minimal active category options' })
+  @ApiResponse({
+    status: 200,
+    description: 'Category options retrieved successfully',
+    type: [CategoryOptionDto],
+  })
+  async getCategoryOptions(): Promise<CategoryOptionDto[]> {
+    return this.catalogService.getCategoryOptions();
   }
 
   @Public()
@@ -132,13 +151,30 @@ export class CatalogController {
     description: 'Search by service name or description',
   })
   @ApiQuery({ name: 'categoryId', required: false, type: String })
+  @ApiPaginationQuery()
   @ApiResponse({
     status: 200,
     description: 'Services retrieved successfully',
     type: [ServiceResponseDto],
   })
-  async getServices(@Query() query?: GetServicesQueryDto) {
-    return this.catalogService.getServices(query?.categoryId, query?.search);
+  async getServices(
+    @Query() query?: GetServicesQueryDto,
+    @Pagination() paginationDto?: PaginationDto,
+  ): Promise<PaginatedResponse<ServiceResponseDto> | ServiceResponseDto[]> {
+    return this.catalogService.getServices(query?.categoryId, query?.search, paginationDto);
+  }
+
+  @Public()
+  @Get('services/options')
+  @ApiOperation({ summary: 'Get minimal active service options' })
+  @ApiQuery({ name: 'categoryId', required: false, type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Service options retrieved successfully',
+    type: [ServiceOptionDto],
+  })
+  async getServiceOptions(@Query('categoryId') categoryId?: string): Promise<ServiceOptionDto[]> {
+    return this.catalogService.getServiceOptions(categoryId);
   }
 
   @Public()

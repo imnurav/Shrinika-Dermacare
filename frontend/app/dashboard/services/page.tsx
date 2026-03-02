@@ -1,23 +1,27 @@
 'use client';
-import { Plus, Edit, Trash2, ShoppingBag, Upload, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Upload, X } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SearchFilterBar from '@/components/common/SearchFilterBar';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
+import TopLoader from '@/components/common/TopLoader';
 import ErrorMessage from '@/components/common/ErrorMessage';
 import ActionButton from '@/components/common/ActionButton';
+import { TableSkeleton } from '@/components/common/ListSkeleton';
 import { getErrorMessage } from '@/lib/utils/errorHandler';
 import { useEffect, useState, useCallback } from 'react';
 import PageHeader from '@/components/common/PageHeader';
+import { useListQueryState } from '@/lib/hooks/useListQueryState';
+import { useToast } from '@/components/common/ToastProvider';
 import { catalogService } from '@/lib/services/catalog';
 import Pagination from '@/components/common/Pagination';
 import { uploadService } from '@/lib/services/upload';
-import { Service, Category } from '@/lib/types';
+import { Service, CategoryOption } from '@/lib/types';
+import Modal from '@/components/common/Modal';
 // import Image from 'next/image';
 
 
 export default function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -35,22 +39,31 @@ export default function ServicesPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
+  const { getParam, setParams } = useListQueryState();
+  const { showToast } = useToast();
+  const [page, setPage] = useState(Number(getParam('page', '1')));
   const [limit] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<Service | null>(null);
+
+  useEffect(() => {
+    setSearchTerm(getParam('search', ''));
+    setPage(Number(getParam('page', '1')));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
       const [servicesData, categoriesData] = await Promise.all([
-        catalogService.getServices(undefined, searchTerm || undefined),
-        catalogService.getCategories(),
+        catalogService.getServices(undefined, searchTerm || undefined, page, limit),
+        catalogService.getCategoryOptions(),
       ]);
-      setServices(servicesData);
-      setTotalItems(servicesData.length);
-      setTotalPages(Math.max(1, Math.ceil(servicesData.length / limit)));
+      setServices(servicesData.data);
+      setTotalItems(servicesData.meta.total);
+      setTotalPages(servicesData.meta.totalPages);
       setCategories(categoriesData);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -58,7 +71,7 @@ export default function ServicesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [searchTerm, limit]);
+  }, [searchTerm, page, limit]);
 
   useEffect(() => {
     fetchData();
@@ -94,8 +107,10 @@ export default function ServicesPage() {
 
       if (editingService) {
         await catalogService.updateService(editingService.id, serviceData);
+        showToast('Service updated successfully', 'success');
       } else {
         await catalogService.createService(serviceData);
+        showToast('Service created successfully', 'success');
       }
       setIsModalOpen(false);
       setEditingService(null);
@@ -124,17 +139,18 @@ export default function ServicesPage() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this service?')) return;
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
     try {
       setError(null);
-      await catalogService.deleteService(id);
+      await catalogService.deleteService(deleteTarget.id);
+      showToast('Service deleted successfully', 'success');
       fetchData();
+      setDeleteTarget(null);
     } catch (error: unknown) {
       setError(getErrorMessage(error));
     }
   };
-
   const resetForm = () => {
     setFormData({
       categoryId: '',
@@ -155,17 +171,10 @@ export default function ServicesPage() {
     setIsModalOpen(true);
   };
 
-  if (isLoading) {
-    return (
-      <DashboardLayout>
-        <LoadingSpinner />
-      </DashboardLayout>
-    );
-  }
-
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <TopLoader loading={isLoading || isUploading} />
+      <div className="flex h-full min-h-0 flex-col gap-4">
         <PageHeader
           title="Services"
           description="Manage services"
@@ -186,84 +195,118 @@ export default function ServicesPage() {
 
         <SearchFilterBar
           searchValue={searchTerm}
-          onSearchChange={setSearchTerm}
+          onSearchChange={(value) => {
+            setSearchTerm(value);
+            setPage(1);
+            setParams({ search: value, page: '1' });
+          }}
           searchPlaceholder="Search services by title or description..."
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {services.map((service) => (
-            <div
-              key={service.id}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  {service.imageUrl ? (
-                    <img
-                      src={service.imageUrl}
-                      alt={service.title}
-                      width={0}
-                      height={0}
-                      referrerPolicy='origin-when-cross-origin'
-                      className="w-12 h-12 rounded-lg object-cover"
-                    />
+        <div className="min-h-0 flex-1">
+          {isLoading ? (
+            <TableSkeleton rows={8} columns={7} />
+          ) : (
+            <div className="h-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+              <div className="h-full overflow-auto">
+                <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 bg-white">
+                  {services.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                        No data
+                      </td>
+                    </tr>
                   ) : (
-                    <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-                      <ShoppingBag className="w-6 h-6 text-indigo-600 opacity-100" />
-                    </div>
+                    services.map((service) => (
+                      <tr key={service.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            {service.imageUrl ? (
+                              <img
+                                src={service.imageUrl}
+                                alt={service.title}
+                                className="h-10 w-10 rounded-lg object-cover"
+                                referrerPolicy="origin-when-cross-origin"
+                              />
+                            ) : (
+                              <div className="h-10 w-10 rounded-lg bg-gray-200" />
+                            )}
+                            <span className="text-sm font-medium text-gray-900">{service.title}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{service.category?.name || '-'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{service.description || '-'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{service.duration} min</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">₹{service.price}</td>
+                        <td className="px-6 py-4 text-sm font-medium text-gray-700">
+                          {service.isActive ? 'ACTIVE' : 'INACTIVE'}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              title="Edit service"
+                              aria-label="Edit service"
+                              onClick={() => handleEdit(service)}
+                              className="rounded-lg border border-gray-300 p-2 text-gray-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Delete service"
+                              aria-label="Delete service"
+                              onClick={() => setDeleteTarget(service)}
+                              className="rounded-lg border border-gray-300 p-2 text-gray-600 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
                   )}
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{service.title}</h3>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {service.category?.name || 'No category'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleEdit(service)}
-                    className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
-                  >
-                    <Edit className="w-4 h-4 opacity-100" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(service.id)}
-                    className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4 opacity-100" />
-                  </button>
-                </div>
-              </div>
-              {service.description && (
-                <p className="text-sm text-gray-600 mb-4">{service.description}</p>
-              )}
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-4">
-                  <span className="text-gray-600">Duration: {service.duration} min</span>
-                  <span className="text-gray-600">₹{service.price}</span>
-                </div>
-                <span
-                  className={`px-2 py-0.5 rounded text-xs font-medium ${service.isActive
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-gray-100 text-gray-800'
-                    }`}
-                >
-                  {service.isActive ? 'Active' : 'Inactive'}
-                </span>
+                </tbody>
+                </table>
               </div>
             </div>
-          ))}
+          )}
         </div>
-        <Pagination page={page} setPage={setPage} totalPages={totalPages} totalItems={totalItems} limit={limit} />
+        <Pagination
+          page={page}
+          setPage={(value) => {
+            setPage(value);
+            setParams({ search: searchTerm, page: String(value) });
+          }}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          limit={limit}
+        />
 
         {/* Modal */}
-        {isModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                {editingService ? 'Edit Service' : 'Add Service'}
-              </h2>
-              <form onSubmit={handleSubmit} className="space-y-4">
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setEditingService(null);
+            resetForm();
+          }}
+          title={editingService ? 'Edit Service' : 'Add Service'}
+          size="xl"
+        >
+          <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Category *
@@ -312,7 +355,7 @@ export default function ServicesPage() {
                   {imagePreview ? (
                     <div className="relative mb-2">
                       <img
-                        src={imagePreview}
+                        src={imagePreview || "https://shrinikadermacare.com/wp-content/uploads/2025/08/beautician-doing-injection-filler-female-client.jpg"}
                         alt="Preview"
                         className="w-full h-48 object-cover rounded-lg border border-gray-300"
                       />
@@ -393,32 +436,58 @@ export default function ServicesPage() {
                     Active
                   </label>
                 </div>
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsModalOpen(false);
-                      setEditingService(null);
-                      resetForm();
-                    }}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isUploading}
-                    className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isUploading ? 'Uploading...' : editingService ? 'Update' : 'Create'}
-                  </button>
-                </div>
-              </form>
+            <div className="flex gap-3 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setEditingService(null);
+                  resetForm();
+                }}
+                className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isUploading}
+                className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isUploading ? 'Uploading...' : editingService ? 'Update' : 'Create'}
+              </button>
             </div>
-          </div>
-        )}
+          </form>
+        </Modal>
+
+        <Modal
+          isOpen={Boolean(deleteTarget)}
+          onClose={() => setDeleteTarget(null)}
+          title="Delete Service"
+          size="sm"
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
+              >
+                Delete
+              </button>
+            </>
+          }
+        >
+          <p className="text-sm text-gray-700">
+            Are you sure you want to delete <span className="font-semibold">{deleteTarget?.title}</span>?
+          </p>
+        </Modal>
       </div>
     </DashboardLayout>
   );
 }
-

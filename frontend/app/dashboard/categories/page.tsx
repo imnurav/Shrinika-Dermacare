@@ -3,14 +3,17 @@ import { FormInput, FormTextArea } from '@/components/form/FormFields';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import SearchFilterBar from '@/components/common/SearchFilterBar';
 import ImageUploadField from '@/components/form/ImageUploadField';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
+import TopLoader from '@/components/common/TopLoader';
 import ErrorMessage from '@/components/common/ErrorMessage';
 import ActionButton from '@/components/common/ActionButton';
-import { Plus, Edit, Trash2, Package } from 'lucide-react';
+import { Plus, Edit, Trash2 } from 'lucide-react';
 import { getErrorMessage } from '@/lib/utils/errorHandler';
 import { useEffect, useState, useCallback } from 'react';
+import { TableSkeleton } from '@/components/common/ListSkeleton';
 import Pagination from '@/components/common/Pagination';
 import PageHeader from '@/components/common/PageHeader';
+import { useListQueryState } from '@/lib/hooks/useListQueryState';
+import { useToast } from '@/components/common/ToastProvider';
 import { catalogService } from '@/lib/services/catalog';
 import { uploadService } from '@/lib/services/upload';
 import Modal from '@/components/common/Modal';
@@ -32,25 +35,34 @@ export default function CategoriesPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
+  const { getParam, setParams } = useListQueryState();
+  const { showToast } = useToast();
+  const [page, setPage] = useState(Number(getParam('page', '1')));
   const [limit] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
+
+  useEffect(() => {
+    setSearchTerm(getParam('search', ''));
+    setPage(Number(getParam('page', '1')));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchCategories = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await catalogService.getCategories(searchTerm || undefined);
-      setCategories(data);
-      setTotalItems(data.length);
-      setTotalPages(Math.max(1, Math.ceil(data.length / limit)));
+      const data = await catalogService.getCategories(searchTerm || undefined, false, page, limit);
+      setCategories(data.data);
+      setTotalItems(data.meta.total);
+      setTotalPages(data.meta.totalPages);
     } catch (error) {
       setError(getErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
-  }, [searchTerm, limit]);
+  }, [searchTerm, page, limit]);
 
   useEffect(() => {
     fetchCategories();
@@ -84,8 +96,10 @@ export default function CategoriesPage() {
 
       if (editingCategory) {
         await catalogService.updateCategory(editingCategory.id, categoryData);
+        showToast('Category updated successfully', 'success');
       } else {
         await catalogService.createCategory(categoryData);
+        showToast('Category created successfully', 'success');
       }
       closeModal();
       fetchCategories();
@@ -109,12 +123,14 @@ export default function CategoriesPage() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this category?')) return;
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
     try {
       setError(null);
-      await catalogService.deleteCategory(id);
+      await catalogService.deleteCategory(deleteTarget.id);
+      showToast('Category deleted successfully', 'success');
       fetchCategories();
+      setDeleteTarget(null);
     } catch (error: any) {
       setError(getErrorMessage(error));
     }
@@ -143,17 +159,10 @@ export default function CategoriesPage() {
     setIsModalOpen(true);
   };
 
-  if (isLoading) {
-    return (
-      <DashboardLayout>
-        <LoadingSpinner />
-      </DashboardLayout>
-    );
-  }
-
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <TopLoader loading={isLoading || isUploading} />
+      <div className="flex h-full min-h-0 flex-col gap-4">
         <PageHeader
           title="Categories"
           description="Manage service categories"
@@ -168,78 +177,106 @@ export default function CategoriesPage() {
 
         <SearchFilterBar
           searchValue={searchTerm}
-          onSearchChange={setSearchTerm}
+          onSearchChange={(value) => {
+            setSearchTerm(value);
+            setPage(1);
+            setParams({ search: value, page: '1' });
+          }}
           searchPlaceholder="Search categories by name..."
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {(() => {
-            const visibleCategories = categories.slice((page - 1) * limit, page * limit);
-            if (visibleCategories.length === 0) {
-              return <div className="col-span-full text-center py-12 text-gray-500">No categories found</div>;
-            }
-
-            return visibleCategories.map((category) => (
-              <div
-                key={category.id}
-                className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    {category.imageUrl ? (
-                      <img
-                        src={category.imageUrl}
-                        alt={category.name}
-                        className="w-12 h-12 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-                        <Package className="w-6 h-6 text-indigo-600" />
-                      </div>
-                    )}
-                    <div>
-                      <h3 className="font-semibold text-gray-900">{category.name}</h3>
-                      <span
-                        className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${category.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                          }`}
-                      >
-                        {category.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <ActionButton
-                      variant="secondary"
-                      size="sm"
-                      icon={<Edit className="w-4 h-4" />}
-                      onClick={() => handleEdit(category)}
-                    >
-                      &nbsp;
-                    </ActionButton>
-                    <ActionButton
-                      variant="danger"
-                      size="sm"
-                      icon={<Trash2 className="w-4 h-4" />}
-                      onClick={() => handleDelete(category.id)}
-                    >
-                      &nbsp;
-                    </ActionButton>
-                  </div>
-                </div>
-                {category.description && <p className="text-sm text-gray-600 mb-4">{category.description}</p>}
+        <div className="min-h-0 flex-1">
+          {isLoading ? (
+            <TableSkeleton rows={8} columns={5} />
+          ) : (
+            <div className="h-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+              <div className="h-full overflow-auto">
+                <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 bg-white">
+                  {categories.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                        No data
+                      </td>
+                    </tr>
+                  ) : (
+                    categories.map((category) => (
+                      <tr key={category.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            {category.imageUrl ? (
+                              <img src={category.imageUrl} alt={category.name} className="h-10 w-10 rounded-lg object-cover" />
+                            ) : (
+                              <div className="h-10 w-10 rounded-lg bg-gray-200" />
+                            )}
+                            <span className="text-sm font-medium text-gray-900">{category.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{category.description || '-'}</td>
+                        <td className="px-6 py-4 text-sm font-medium text-gray-700">
+                          {category.isActive ? 'ACTIVE' : 'INACTIVE'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {new Date(category.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              title="Edit category"
+                              aria-label="Edit category"
+                              onClick={() => handleEdit(category)}
+                              className="rounded-lg border border-gray-300 p-2 text-gray-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Delete category"
+                              aria-label="Delete category"
+                              onClick={() => setDeleteTarget(category)}
+                              className="rounded-lg border border-gray-300 p-2 text-gray-600 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                </table>
               </div>
-            ));
-          })()}
+            </div>
+          )}
         </div>
 
-        <Pagination page={page} setPage={setPage} totalPages={totalPages} totalItems={totalItems} limit={limit} />
+        <Pagination
+          page={page}
+          setPage={(value) => {
+            setPage(value);
+            setParams({ search: searchTerm, page: String(value) });
+          }}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          limit={limit}
+        />
 
         {/* Modal */}
         <Modal
           isOpen={isModalOpen}
           onClose={closeModal}
           title={editingCategory ? 'Edit Category' : 'Add Category'}
-          size="md"
+          size="xl"
           footer={
             <>
               <button
@@ -293,8 +330,36 @@ export default function CategoriesPage() {
             </div>
           </div>
         </Modal>
+
+        <Modal
+          isOpen={Boolean(deleteTarget)}
+          onClose={() => setDeleteTarget(null)}
+          title="Delete Category"
+          size="sm"
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
+              >
+                Delete
+              </button>
+            </>
+          }
+        >
+          <p className="text-sm text-gray-700">
+            Are you sure you want to delete <span className="font-semibold">{deleteTarget?.name}</span>?
+          </p>
+        </Modal>
       </div>
     </DashboardLayout>
   );
 }
-

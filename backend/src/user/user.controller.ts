@@ -5,6 +5,7 @@ import { AddressResponseDto } from './dto/address-response.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { UserService } from './user.service';
 import {
   Controller,
@@ -41,6 +42,14 @@ export class UserController {
   })
   async updateProfile(@CurrentUser() user: any, @Body() updateProfileDto: UpdateProfileDto) {
     return this.userService.updateProfile(user.id, updateProfileDto);
+  }
+
+  @Put('change-password')
+  @ApiOperation({ summary: 'Change current user password' })
+  @ApiResponse({ status: 200, description: 'Password updated successfully' })
+  @ApiResponse({ status: 403, description: 'Current password invalid', type: ErrorResponseDto })
+  async changePassword(@CurrentUser() user: any, @Body() changePasswordDto: ChangePasswordDto) {
+    return this.userService.changePassword(user.id, changePasswordDto);
   }
 
   @Get('addresses')

@@ -1,6 +1,6 @@
 import { ServiceResponseDto } from '../../catalog/dto/service-response.dto';
 import { AddressResponseDto } from '../../user/dto/address-response.dto';
-import { BookingStatus } from '@prisma/client';
+import { BookingStatus } from '../entities/booking.entity';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class BookingServiceResponseDto {

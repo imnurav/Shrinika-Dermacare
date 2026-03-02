@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
 export interface ModalProps {
@@ -12,10 +12,10 @@ export interface ModalProps {
 }
 
 const sizeClasses = {
-  sm: 'max-w-sm!',
-  md: 'max-w-md!',
-  lg: 'max-w-lg!',
-  xl: 'max-w-xl!',
+  sm: 'max-w-md',
+  md: 'max-w-2xl',
+  lg: 'max-w-3xl',
+  xl: 'max-w-4xl',
 };
 
 export const Modal: React.FC<ModalProps> = ({
@@ -26,19 +26,46 @@ export const Modal: React.FC<ModalProps> = ({
   footer,
   size = 'md',
 }) => {
-  if (!isOpen) return null;
+  const [isRendered, setIsRendered] = useState(isOpen);
+  const [isVisible, setIsVisible] = useState(isOpen);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsRendered(true);
+      requestAnimationFrame(() => setIsVisible(true));
+      return;
+    }
+
+    setIsVisible(false);
+    const timer = setTimeout(() => setIsRendered(false), 180);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
+
+  if (!isRendered) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 ">
-      <div className={`bg-white rounded-xl shadow-lg ${sizeClasses[size]} max-h-[90vh]  overflow-y-auto w-full`}>
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-200 ${
+        isVisible ? 'bg-slate-900/35 backdrop-blur-sm' : 'bg-slate-900/0 backdrop-blur-0'
+      }`}
+      onClick={onClose}
+    >
+      <div
+        className={`w-full overflow-y-auto rounded-xl bg-white shadow-lg ${sizeClasses[size]} max-h-[90vh] transition-all duration-200 ${
+          isVisible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-2 scale-95 opacity-0'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
           <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+            className="rounded-lg border border-gray-200 p-1.5 text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900"
+            aria-label="Close modal"
+            title="Close"
           >
-            <X className="w-5 h-5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
