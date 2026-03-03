@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, Logger } from '@nestjs/common';
 import { AuthResponseDto, UserResponseDto } from './dto/auth-response.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ConfigService } from '@nestjs/config';
@@ -11,6 +11,9 @@ import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+  private readonly debugAuthLogs = process.env.DEBUG_AUTH_LOGS === 'true';
+
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -63,6 +66,9 @@ export class AuthService {
 
     // Generate JWT token
     const accessToken = await this.generateToken(user.id, user.email, user.phone);
+    if (this.debugAuthLogs) {
+      this.logger.log(`register user created userId=${user.id} role=${user.role}`);
+    }
 
     return {
       accessToken,
@@ -74,6 +80,9 @@ export class AuthService {
     const { email, phone, password } = loginDto;
 
     if (!email && !phone) {
+      if (this.debugAuthLogs) {
+        this.logger.warn('login failed missing identifier');
+      }
       throw new UnauthorizedException('Email or phone is required');
     }
 
@@ -83,12 +92,18 @@ export class AuthService {
     });
 
     if (!user) {
+      if (this.debugAuthLogs) {
+        this.logger.warn(`login failed user not found by=${email ? 'email' : 'phone'}`);
+      }
       throw new UnauthorizedException('Invalid credentials');
     }
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
+      if (this.debugAuthLogs) {
+        this.logger.warn(`login failed invalid password userId=${user.id}`);
+      }
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -104,6 +119,9 @@ export class AuthService {
       gender: user.gender,
       role: user.role,
     };
+    if (this.debugAuthLogs) {
+      this.logger.log(`login success userId=${user.id} role=${user.role}`);
+    }
 
     return {
       accessToken,

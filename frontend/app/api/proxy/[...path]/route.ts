@@ -5,6 +5,7 @@ const BACKEND_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:3000";
 const METHODS_WITHOUT_BODY = new Set(["GET", "HEAD"]);
+const DEBUG_AUTH_LOGS = process.env.DEBUG_AUTH_LOGS === "true";
 
 function buildTargetUrl(pathSegments: string[], incomingUrl: string): string {
   const safeBase = BACKEND_URL.endsWith("/")
@@ -23,6 +24,7 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
   const target = buildTargetUrl(pathSegments, request.url);
   const outgoingHeaders = new Headers();
   const tokenFromCookie = request.cookies.get("access_token")?.value;
+  const incomingAuthHeader = request.headers.get("authorization");
 
   request.headers.forEach((value, key) => {
     const lowered = key.toLowerCase();
@@ -31,6 +33,16 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
   });
   if (!outgoingHeaders.get("authorization") && tokenFromCookie) {
     outgoingHeaders.set("authorization", `Bearer ${tokenFromCookie}`);
+  }
+  if (DEBUG_AUTH_LOGS) {
+    console.log("[proxy] request", {
+      method: request.method,
+      path: `/${pathSegments.join("/")}`,
+      hasCookieToken: Boolean(tokenFromCookie),
+      hasIncomingAuthorization: Boolean(incomingAuthHeader),
+      hasForwardedAuthorization: Boolean(outgoingHeaders.get("authorization")),
+      target,
+    });
   }
 
   const init: RequestInit = {
@@ -50,6 +62,15 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     if (key.toLowerCase() === "content-encoding") return;
     responseHeaders.set(key, value);
   });
+
+  if (DEBUG_AUTH_LOGS) {
+    console.log("[proxy] response", {
+      method: request.method,
+      path: `/${pathSegments.join("/")}`,
+      status: backendResponse.status,
+      ok: backendResponse.ok,
+    });
+  }
 
   return new NextResponse(backendResponse.body, {
     status: backendResponse.status,

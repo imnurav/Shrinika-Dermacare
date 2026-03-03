@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Res } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Res, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { Public } from '../common/decorators/public.decorator';
@@ -12,6 +12,9 @@ import { LoginDto } from './dto/login.dto';
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+  private readonly debugAuthLogs = process.env.DEBUG_AUTH_LOGS === 'true';
+
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
@@ -44,7 +47,13 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponseDto> {
     const authResponse = await this.authService.register(registerDto);
-    res.cookie('access_token', authResponse.accessToken, this.getCookieOptions());
+    const cookieOptions = this.getCookieOptions();
+    res.cookie('access_token', authResponse.accessToken, cookieOptions);
+    if (this.debugAuthLogs) {
+      this.logger.log(
+        `register success userId=${authResponse.user.id} role=${authResponse.user.role} cookieSecure=${cookieOptions.secure}`,
+      );
+    }
     return authResponse;
   }
 
@@ -59,7 +68,13 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponseDto> {
     const authResponse = await this.authService.login(loginDto);
-    res.cookie('access_token', authResponse.accessToken, this.getCookieOptions());
+    const cookieOptions = this.getCookieOptions();
+    res.cookie('access_token', authResponse.accessToken, cookieOptions);
+    if (this.debugAuthLogs) {
+      this.logger.log(
+        `login success userId=${authResponse.user.id} role=${authResponse.user.role} cookieSecure=${cookieOptions.secure}`,
+      );
+    }
     return authResponse;
   }
 
@@ -76,6 +91,9 @@ export class AuthController {
       sameSite: options.sameSite,
       path: options.path,
     });
+    if (this.debugAuthLogs) {
+      this.logger.log(`logout success cookieCleared path=${options.path} secure=${options.secure}`);
+    }
     return { message: 'Logged out successfully' };
   }
 }

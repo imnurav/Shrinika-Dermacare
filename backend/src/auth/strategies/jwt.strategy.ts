@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { User } from '../../user/entities/user.entity';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -19,6 +19,9 @@ function extractTokenFromCookie(req: Request): string | null {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly logger = new Logger(JwtStrategy.name);
+  private readonly debugAuthLogs = process.env.DEBUG_AUTH_LOGS === 'true';
+
   constructor(
     private configService: ConfigService,
     @InjectRepository(User)
@@ -26,7 +29,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
-        (request: Request) => extractTokenFromCookie(request),
+        (request: Request) => {
+          const token = extractTokenFromCookie(request);
+          if (this.debugAuthLogs) {
+            this.logger.log(
+              `JWT extractors - hasCookieToken=${Boolean(token)} hasHeaderToken=${Boolean(
+                ExtractJwt.fromAuthHeaderAsBearerToken()(request),
+              )}`,
+            );
+          }
+          return token;
+        },
         ExtractJwt.fromAuthHeaderAsBearerToken(),
       ]),
       ignoreExpiration: false,
@@ -35,6 +48,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: { sub: string; email?: string; phone?: string }) {
+    if (this.debugAuthLogs) {
+      this.logger.log(`JWT validate payload sub=${payload?.sub || 'unknown'}`);
+    }
     const user = await this.userRepository.findOne({
       where: { id: payload.sub },
       select: {
@@ -48,7 +64,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
 
     if (!user) {
+      if (this.debugAuthLogs) {
+        this.logger.warn(
+          `JWT validate failed. user not found for sub=${payload?.sub || 'unknown'}`,
+        );
+      }
       throw new UnauthorizedException();
+    }
+
+    if (this.debugAuthLogs) {
+      this.logger.log(`JWT validate success userId=${user.id} role=${user.role}`);
     }
 
     return user;
