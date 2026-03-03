@@ -12,11 +12,15 @@ import {
   ForbiddenException,
   NotFoundException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { DataSource, In, Repository } from 'typeorm';
 
 @Injectable()
 export class BookingService {
+  private readonly logger = new Logger(BookingService.name);
+  private readonly debugAuthLogs = process.env.DEBUG_AUTH_LOGS === 'true';
+
   constructor(
     @InjectRepository(Booking)
     private readonly bookingRepository: Repository<Booking>,
@@ -401,6 +405,11 @@ export class BookingService {
     sortBy?: string,
     sortOrder: 'ASC' | 'DESC' = 'DESC',
   ): Promise<PaginatedResponse<BookingResponseDto> | BookingResponseDto[]> {
+    if (this.debugAuthLogs) {
+      this.logger.log(
+        `getAllBookings filters page=${paginationDto?.page ?? 'none'} limit=${paginationDto?.limit ?? 'none'} status=${status ?? 'all'} startDate=${startDate ?? 'none'} endDate=${endDate ?? 'none'} search=${search ?? 'none'} sortBy=${sortBy ?? 'createdAt'} sortOrder=${sortOrder}`,
+      );
+    }
     const allowedSortFields: Record<string, string> = {
       personName: 'booking.personName',
       personPhone: 'booking.personPhone',
@@ -468,6 +477,11 @@ export class BookingService {
       const skip = (page - 1) * limit;
 
       const [data, total] = await query.skip(skip).take(limit).getManyAndCount();
+      if (this.debugAuthLogs) {
+        this.logger.log(
+          `getAllBookings result page=${page} limit=${limit} returned=${data.length} total=${total} totalPages=${Math.ceil(total / limit)}`,
+        );
+      }
 
       return {
         data,
@@ -480,6 +494,9 @@ export class BookingService {
       };
     }
 
+    if (this.debugAuthLogs) {
+      this.logger.log('getAllBookings non-paginated query executed');
+    }
     return query.getMany();
   }
 }

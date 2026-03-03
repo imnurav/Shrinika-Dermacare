@@ -5,17 +5,6 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
-import { Request } from 'express';
-
-function extractTokenFromCookie(req: Request): string | null {
-  const cookieHeader = req?.headers?.cookie;
-  if (!cookieHeader) return null;
-  const parts = cookieHeader.split(';').map((item) => item.trim());
-  const tokenPair = parts.find((item) => item.startsWith('access_token='));
-  if (!tokenPair) return null;
-  const raw = tokenPair.substring('access_token='.length);
-  return raw ? decodeURIComponent(raw) : null;
-}
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -28,20 +17,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private readonly userRepository: Repository<User>,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromExtractors([
-        (request: Request) => {
-          const token = extractTokenFromCookie(request);
-          if (this.debugAuthLogs) {
-            this.logger.log(
-              `JWT extractors - hasCookieToken=${Boolean(token)} hasHeaderToken=${Boolean(
-                ExtractJwt.fromAuthHeaderAsBearerToken()(request),
-              )}`,
-            );
-          }
-          return token;
-        },
-        ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ]),
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: configService.get<string>('JWT_SECRET'),
     });

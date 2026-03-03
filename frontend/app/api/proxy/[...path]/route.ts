@@ -23,7 +23,6 @@ function buildTargetUrl(pathSegments: string[], incomingUrl: string): string {
 async function proxyRequest(request: NextRequest, pathSegments: string[]) {
   const target = buildTargetUrl(pathSegments, request.url);
   const outgoingHeaders = new Headers();
-  const tokenFromCookie = request.cookies.get("access_token")?.value;
   const incomingAuthHeader = request.headers.get("authorization");
 
   request.headers.forEach((value, key) => {
@@ -31,14 +30,10 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     if (lowered === "host" || lowered === "content-length") return;
     outgoingHeaders.set(key, value);
   });
-  if (!outgoingHeaders.get("authorization") && tokenFromCookie) {
-    outgoingHeaders.set("authorization", `Bearer ${tokenFromCookie}`);
-  }
   if (DEBUG_AUTH_LOGS) {
     console.log("[proxy] request", {
       method: request.method,
       path: `/${pathSegments.join("/")}`,
-      hasCookieToken: Boolean(tokenFromCookie),
       hasIncomingAuthorization: Boolean(incomingAuthHeader),
       hasForwardedAuthorization: Boolean(outgoingHeaders.get("authorization")),
       target,

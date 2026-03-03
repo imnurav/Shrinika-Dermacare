@@ -1,5 +1,6 @@
 'use client';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { authService } from '@/lib/services/auth';
 import TopLoader from '@/components/common/TopLoader';
 import { useEffect, useState } from 'react';
 import { User } from '@/lib/types';
@@ -13,6 +14,7 @@ export type DashboardLayoutProps = {
 };
 
 export default function DashboardLayout({ children, initialUser }: DashboardLayoutProps) {
+  const router = useRouter();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -28,6 +30,14 @@ export default function DashboardLayout({ children, initialUser }: DashboardLayo
       return next;
     });
   };
+
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    const user = authService.getCurrentUser();
+    if (!token || !user) {
+      router.replace('/login');
+    }
+  }, [router]);
 
   useEffect(() => {
     if (!routeLoading) return;
