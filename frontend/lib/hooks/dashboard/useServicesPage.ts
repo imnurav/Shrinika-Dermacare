@@ -39,6 +39,25 @@ type ServicesHookOptions = {
   initialQuery?: ServicesInitialQuery;
 };
 
+const toRows = (payload: unknown): Service[] => {
+  if (Array.isArray(payload)) return payload as Service[];
+  if (payload && typeof payload === "object" && Array.isArray((payload as { data?: unknown }).data)) {
+    return (payload as { data: Service[] }).data;
+  }
+  return [];
+};
+
+const toMeta = (payload: unknown): { total: number; totalPages: number } => {
+  if (payload && typeof payload === "object" && (payload as { meta?: unknown }).meta) {
+    const meta = (payload as { meta?: { total?: number; totalPages?: number } }).meta;
+    return {
+      total: meta?.total ?? 0,
+      totalPages: meta?.totalPages ?? 1,
+    };
+  }
+  return { total: 0, totalPages: 1 };
+};
+
 export function useServicesPage(options?: ServicesHookOptions) {
   const { getParam, setParams } = useListQueryState();
   const { showToast } = useToast();
@@ -53,7 +72,9 @@ export function useServicesPage(options?: ServicesHookOptions) {
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [sortOrder, setSortOrder] = useState<"ASC" | "DESC">(initialQuery?.sortOrder ?? "DESC");
   const [sortBy, setSortBy] = useState<string>(initialQuery?.sortBy ?? "createdAt");
-  const [services, setServices] = useState<Service[]>(initialData?.data || []);
+  const initialRows = toRows(initialData);
+  const initialMeta = toMeta(initialData);
+  const [services, setServices] = useState<Service[]>(initialRows);
   const [error, setError] = useState<string | null>(null);
   const [isQueryReady, setIsQueryReady] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -61,8 +82,8 @@ export function useServicesPage(options?: ServicesHookOptions) {
   const [isLoading, setIsLoading] = useState(!initialData);
   const [searchInput, setSearchInput] = useState(initialQuery?.search ?? "");
   const [searchTerm, setSearchTerm] = useState(initialQuery?.search ?? "");
-  const [totalPages, setTotalPages] = useState(initialData?.meta.totalPages ?? 1);
-  const [totalItems, setTotalItems] = useState(initialData?.meta.total ?? 0);
+  const [totalPages, setTotalPages] = useState(initialMeta.totalPages);
+  const [totalItems, setTotalItems] = useState(initialMeta.total);
   const [limit, setLimit] = useState(initialQuery?.limit ?? 10);
   const [page, setPage] = useState(initialQuery?.page ?? 1);
 
@@ -94,9 +115,11 @@ export function useServicesPage(options?: ServicesHookOptions) {
         ),
         catalogService.getCategoryOptions(),
       ]);
-      setServices(Array.isArray(servicesData?.data) ? servicesData.data : []);
-      setTotalItems(servicesData?.meta?.total ?? 0);
-      setTotalPages(servicesData?.meta?.totalPages ?? 1);
+      const nextRows = toRows(servicesData);
+      const nextMeta = toMeta(servicesData);
+      setServices(nextRows);
+      setTotalItems(nextMeta.total);
+      setTotalPages(nextMeta.totalPages);
       setCategories(Array.isArray(categoriesData) ? categoriesData : []);
     } catch (err) {
       setError(getErrorMessage(err));

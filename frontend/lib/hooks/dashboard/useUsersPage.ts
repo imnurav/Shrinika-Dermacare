@@ -35,13 +35,34 @@ type UsersHookOptions = {
   initialQuery?: UsersInitialQuery;
 };
 
+const toRows = (payload: unknown): User[] => {
+  if (Array.isArray(payload)) return payload as User[];
+  if (payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown }).data)) {
+    return (payload as { data: User[] }).data;
+  }
+  return [];
+};
+
+const toMeta = (payload: unknown): { total: number; totalPages: number } => {
+  if (payload && typeof payload === 'object' && (payload as { meta?: unknown }).meta) {
+    const meta = (payload as { meta?: { total?: number; totalPages?: number } }).meta;
+    return {
+      total: meta?.total ?? 0,
+      totalPages: meta?.totalPages ?? 1,
+    };
+  }
+  return { total: 0, totalPages: 1 };
+};
+
 export function useUsersPage(options?: UsersHookOptions) {
   const { getParam, setParams } = useListQueryState();
   const { showToast } = useToast();
   const { user: currentUser } = useCurrentUser();
   const initialQuery = options?.initialQuery;
   const initialData = options?.initialData;
-  const [users, setUsers] = useState<User[]>(initialData?.data || []);
+  const initialRows = toRows(initialData);
+  const initialMeta = toMeta(initialData);
+  const [users, setUsers] = useState<User[]>(initialRows);
   const [isLoading, setIsLoading] = useState(!initialData);
   const [isSaving, setIsSaving] = useState(false);
   const [isQueryReady, setIsQueryReady] = useState(false);
@@ -53,7 +74,7 @@ export function useUsersPage(options?: UsersHookOptions) {
   const [sortBy, setSortBy] = useState<string>(initialQuery?.sortBy ?? 'createdAt');
   const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>(initialQuery?.sortOrder ?? 'DESC');
   const [page, setPage] = useState(initialQuery?.page ?? 1), [limit, setLimit] = useState(initialQuery?.limit ?? 10);
-  const [totalPages, setTotalPages] = useState(initialData?.meta.totalPages ?? 1), [totalItems, setTotalItems] = useState(initialData?.meta.total ?? 0);
+  const [totalPages, setTotalPages] = useState(initialMeta.totalPages), [totalItems, setTotalItems] = useState(initialMeta.total);
   const [isModalOpen, setIsModalOpen] = useState(false), [editingUser, setEditingUser] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null), [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null), [formData, setFormData] = useState<UserFormData>(EMPTY_FORM);
@@ -106,9 +127,11 @@ export function useUsersPage(options?: UsersHookOptions) {
         sortBy,
         sortOrder,
       );
-      setUsers(Array.isArray(data?.data) ? data.data : []);
-      setTotalPages(data?.meta?.totalPages ?? 1);
-      setTotalItems(data?.meta?.total ?? 0);
+      const nextRows = toRows(data);
+      const nextMeta = toMeta(data);
+      setUsers(nextRows);
+      setTotalPages(nextMeta.totalPages);
+      setTotalItems(nextMeta.total);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

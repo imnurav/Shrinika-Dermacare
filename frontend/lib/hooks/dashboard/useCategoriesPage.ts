@@ -31,13 +31,34 @@ type CategoriesHookOptions = {
   initialQuery?: CategoriesInitialQuery;
 };
 
+const toRows = (payload: unknown): Category[] => {
+  if (Array.isArray(payload)) return payload as Category[];
+  if (payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown }).data)) {
+    return (payload as { data: Category[] }).data;
+  }
+  return [];
+};
+
+const toMeta = (payload: unknown): { total: number; totalPages: number } => {
+  if (payload && typeof payload === 'object' && (payload as { meta?: unknown }).meta) {
+    const meta = (payload as { meta?: { total?: number; totalPages?: number } }).meta;
+    return {
+      total: meta?.total ?? 0,
+      totalPages: meta?.totalPages ?? 1,
+    };
+  }
+  return { total: 0, totalPages: 1 };
+};
+
 export function useCategoriesPage(options?: CategoriesHookOptions) {
   const { getParam, setParams } = useListQueryState();
   const { showToast } = useToast();
   const initialQuery = options?.initialQuery;
   const initialData = options?.initialData;
 
-  const [categories, setCategories] = useState<Category[]>(initialData?.data || []);
+  const initialRows = toRows(initialData);
+  const initialMeta = toMeta(initialData);
+  const [categories, setCategories] = useState<Category[]>(initialRows);
   const [isLoading, setIsLoading] = useState(!initialData);
   const [isUploading, setIsUploading] = useState(false);
   const [isQueryReady, setIsQueryReady] = useState(false);
@@ -48,8 +69,8 @@ export function useCategoriesPage(options?: CategoriesHookOptions) {
   const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>(initialQuery?.sortOrder ?? 'ASC');
   const [page, setPage] = useState(initialQuery?.page ?? 1);
   const [limit, setLimit] = useState(initialQuery?.limit ?? 10);
-  const [totalPages, setTotalPages] = useState(initialData?.meta.totalPages ?? 1);
-  const [totalItems, setTotalItems] = useState(initialData?.meta.total ?? 0);
+  const [totalPages, setTotalPages] = useState(initialMeta.totalPages);
+  const [totalItems, setTotalItems] = useState(initialMeta.total);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
@@ -96,9 +117,11 @@ export function useCategoriesPage(options?: CategoriesHookOptions) {
         sortBy,
         sortOrder,
       );
-      setCategories(Array.isArray(data?.data) ? data.data : []);
-      setTotalItems(data?.meta?.total ?? 0);
-      setTotalPages(data?.meta?.totalPages ?? 1);
+      const nextRows = toRows(data);
+      const nextMeta = toMeta(data);
+      setCategories(nextRows);
+      setTotalItems(nextMeta.total);
+      setTotalPages(nextMeta.totalPages);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

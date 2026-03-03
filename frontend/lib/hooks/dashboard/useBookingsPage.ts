@@ -44,6 +44,25 @@ type BookingsHookOptions = {
   initialQuery?: BookingsInitialQuery;
 };
 
+const toRows = (payload: unknown): Booking[] => {
+  if (Array.isArray(payload)) return payload as Booking[];
+  if (payload && typeof payload === "object" && Array.isArray((payload as { data?: unknown }).data)) {
+    return (payload as { data: Booking[] }).data;
+  }
+  return [];
+};
+
+const toMeta = (payload: unknown): { total: number; totalPages: number } => {
+  if (payload && typeof payload === "object" && (payload as { meta?: unknown }).meta) {
+    const meta = (payload as { meta?: { total?: number; totalPages?: number } }).meta;
+    return {
+      total: meta?.total ?? 0,
+      totalPages: meta?.totalPages ?? 1,
+    };
+  }
+  return { total: 0, totalPages: 1 };
+};
+
 export function useBookingsPage(options?: BookingsHookOptions) {
   const { getParam, setParams } = useListQueryState();
   const { showToast } = useToast();
@@ -53,7 +72,9 @@ export function useBookingsPage(options?: BookingsHookOptions) {
     initialQuery?.status ?? "ALL",
   );
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>(initialData?.data || []);
+  const initialRows = toRows(initialData);
+  const initialMeta = toMeta(initialData);
+  const [bookings, setBookings] = useState<Booking[]>(initialRows);
   const [isQueryReady, setIsQueryReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -75,8 +96,8 @@ export function useBookingsPage(options?: BookingsHookOptions) {
   const [serviceSelectValue, setServiceSelectValue] = useState("");
   const [sortBy, setSortBy] = useState<string>(initialQuery?.sortBy ?? "createdAt");
   const [isSaving, setIsSaving] = useState(false);
-  const [totalPages, setTotalPages] = useState(initialData?.meta.totalPages ?? 1);
-  const [totalItems, setTotalItems] = useState(initialData?.meta.total ?? 0);
+  const [totalPages, setTotalPages] = useState(initialMeta.totalPages);
+  const [totalItems, setTotalItems] = useState(initialMeta.total);
   const [limit, setLimit] = useState(initialQuery?.limit ?? 10);
   const [page, setPage] = useState(initialQuery?.page ?? 1);
 
@@ -120,9 +141,11 @@ export function useBookingsPage(options?: BookingsHookOptions) {
         sortBy,
         sortOrder,
       );
-      setBookings(Array.isArray(data?.data) ? data.data : []);
-      setTotalPages(data?.meta?.totalPages ?? 1);
-      setTotalItems(data?.meta?.total ?? 0);
+      const nextRows = toRows(data);
+      const nextMeta = toMeta(data);
+      setBookings(nextRows);
+      setTotalPages(nextMeta.totalPages);
+      setTotalItems(nextMeta.total);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
