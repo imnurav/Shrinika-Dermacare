@@ -1,6 +1,5 @@
 'use client';
 import { usePathname, useRouter } from 'next/navigation';
-import { authService } from '@/lib/services/auth';
 import TopLoader from '@/components/common/TopLoader';
 import { useEffect, useState } from 'react';
 import { User } from '@/lib/types';
@@ -33,8 +32,7 @@ export default function DashboardLayout({ children, initialUser }: DashboardLayo
 
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-    const user = authService.getCurrentUser();
-    if (!token || !user) {
+    if (!token) {
       router.replace('/login');
     }
   }, [router]);

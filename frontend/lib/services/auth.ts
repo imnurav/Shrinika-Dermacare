@@ -20,23 +20,44 @@ export interface AuthResponse {
   user: User;
 }
 
+type UnknownAuthPayload = Partial<AuthResponse> & {
+  access_token?: string;
+};
+
+function normalizeAuthResponse(payload: UnknownAuthPayload): AuthResponse {
+  const accessToken = payload.accessToken || payload.access_token || '';
+  if (!accessToken) {
+    throw new Error('Login failed: token missing in response');
+  }
+  return {
+    accessToken,
+    user: (payload.user || null) as User,
+  };
+}
+
 export const authService = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    const response = await api.post<AuthResponse>('/auth/login', credentials);
+    const response = await api.post<UnknownAuthPayload>('/auth/login', credentials);
+    const normalized = normalizeAuthResponse(response.data);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('access_token', response.data.accessToken);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem('access_token', normalized.accessToken);
+      if (normalized.user) {
+        localStorage.setItem('user', JSON.stringify(normalized.user));
+      }
     }
-    return response.data;
+    return normalized;
   },
 
   register: async (data: RegisterData): Promise<AuthResponse> => {
-    const response = await api.post<AuthResponse>('/auth/register', data);
+    const response = await api.post<UnknownAuthPayload>('/auth/register', data);
+    const normalized = normalizeAuthResponse(response.data);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('access_token', response.data.accessToken);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem('access_token', normalized.accessToken);
+      if (normalized.user) {
+        localStorage.setItem('user', JSON.stringify(normalized.user));
+      }
     }
-    return response.data;
+    return normalized;
   },
 
   logout: async () => {
