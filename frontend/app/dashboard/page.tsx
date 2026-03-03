@@ -1,7 +1,6 @@
 'use client';
-import DashboardLayout from '@/components/layout/DashboardLayout';
 import ErrorMessage from '@/components/common/ErrorMessage';
-import TopLoader from '@/components/common/TopLoader';
+import AdminTable, { AdminEmptyRow, AdminTd, AdminTh } from '@/components/common/AdminTable';
 import { getErrorMessage } from '@/lib/utils/errorHandler';
 import { adminService } from '@/lib/services/admin';
 import { useRouter } from 'next/navigation';
@@ -32,7 +31,6 @@ export default function DashboardPage() {
     totalUsers: 0,
     recentBookings: [],
   });
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -43,8 +41,6 @@ export default function DashboardPage() {
       } catch (error) {
         console.error('Error fetching stats:', error);
         setError(getErrorMessage(error));
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -119,83 +115,77 @@ export default function DashboardPage() {
   ];
 
   return (
-    <DashboardLayout>
-      <TopLoader loading={isLoading} />
-      <div className="space-y-6">
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-r from-indigo-600 via-sky-600 to-teal-500 p-6 text-white">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="mt-1 text-sm text-indigo-100">Operational snapshot from a single analytics API</p>
-        </div>
+    <>
+      <div className="flex h-full min-h-0 flex-col gap-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-auto pr-1">
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-r from-indigo-600 via-sky-600 to-teal-500 p-6 text-white">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="mt-1 text-sm text-indigo-100">Operational snapshot from a single analytics API</p>
+      </div>
 
-        {error && (
-          <ErrorMessage
-            message={error}
-            onDismiss={() => setError(null)}
-            type="error"
-          />
-        )}
+      {error && (
+        <ErrorMessage
+          message={error}
+          onDismiss={() => setError(null)}
+          type="error" />
+      )}
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {statCards.map((stat, index) => {
-            const Icon = stat.icon;
-            return (
-              <div
-                key={index}
-                className="cursor-pointer rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
-                onClick={() => router.push(stat.href)}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{stat.title}</p>
-                    <p className="mt-2 text-3xl font-bold text-gray-900">{stat.value}</p>
-                  </div>
-                  <div className={`${stat.bgColor} p-3 rounded-lg`}>
-                    <Icon className={`h-6 w-6 ${stat.color}`} />
-                  </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-2 lg:grid-cols-4">
+        {statCards.map((stat, index) => {
+          const Icon = stat.icon;
+          return (
+            <div
+              key={index}
+              className="cursor-pointer rounded-xl border border-gray-200 bg-white p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md md:p-5"
+              onClick={() => router.push(stat.href)}
+            >
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 md:text-xs">{stat.title}</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-900 md:mt-2 md:text-3xl">{stat.value}</p>
+                </div>
+                <div className={`${stat.bgColor} rounded-lg p-2 md:p-3`}>
+                  <Icon className={`h-5 w-5 md:h-6 md:w-6 ${stat.color}`} />
                 </div>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
+      </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-          <div className="border-b border-gray-100 px-6 py-4">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Bookings</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Booking</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Person</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Preferred Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Created</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
-                {stats.recentBookings.length === 0 ? (
-                  <tr>
-                    <td className="px-6 py-10 text-center text-sm text-gray-500" colSpan={5}>
-                      No recent bookings available
-                    </td>
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-100 px-6 py-4">
+          <h2 className="text-lg font-semibold text-gray-900">Recent Bookings</h2>
+        </div>
+        <AdminTable minWidth={900} outerClassName="">
+            <thead className="bg-gray-50">
+              <tr>
+                <AdminTh>Booking</AdminTh>
+                <AdminTh>Person</AdminTh>
+                <AdminTh>Status</AdminTh>
+                <AdminTh>Preferred Date</AdminTh>
+                <AdminTh>Created</AdminTh>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 bg-white">
+              {stats.recentBookings.length === 0 ? (
+                <AdminEmptyRow colSpan={5} message="No recent bookings available" />
+              ) : (
+                stats.recentBookings.map((booking) => (
+                  <tr key={booking.id} className="hover:bg-gray-50">
+                    <AdminTd className="break-all font-mono text-xs">{booking.id}</AdminTd>
+                    <AdminTd className="font-medium text-gray-900">{booking.personName || '-'}</AdminTd>
+                    <AdminTd>{booking.status}</AdminTd>
+                    <AdminTd>{format(new Date(booking.preferredDate), 'MMM dd, yyyy')}</AdminTd>
+                    <AdminTd className="text-gray-500">{format(new Date(booking.createdAt), 'MMM dd, yyyy HH:mm')}</AdminTd>
                   </tr>
-                ) : (
-                  stats.recentBookings.map((booking) => (
-                    <tr key={booking.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-mono text-gray-700">{booking.id.slice(0, 8)}...</td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{booking.personName}</td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{booking.status}</td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{format(new Date(booking.preferredDate), 'MMM dd, yyyy')}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{format(new Date(booking.createdAt), 'MMM dd, yyyy HH:mm')}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </AdminTable>
+      </div>
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }

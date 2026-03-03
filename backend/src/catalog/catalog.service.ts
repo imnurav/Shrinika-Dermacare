@@ -1,16 +1,16 @@
 import { CategoryResponseDto, CategoryWithServicesDto } from './dto/category-response.dto';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { CategoryOptionDto, ServiceOptionDto } from './dto/options.dto';
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { ServiceResponseDto } from './dto/service-response.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { Category } from './entities/category.entity';
 import { Service } from './entities/service.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class CatalogService {
@@ -26,6 +26,8 @@ export class CatalogService {
     search?: string,
     includeServices = false,
     paginationDto?: PaginationDto,
+    sortBy?: string,
+    sortOrder: 'ASC' | 'DESC' = 'ASC',
   ): Promise<
     | PaginatedResponse<CategoryResponseDto>
     | PaginatedResponse<CategoryWithServicesDto>
@@ -33,20 +35,44 @@ export class CatalogService {
     | CategoryWithServicesDto[]
   > {
     if (includeServices) {
+      const allowedSortFields: Record<string, string> = {
+        name: 'category.name',
+        description: 'category.description',
+        createdAt: 'category.createdAt',
+        isActive: 'category.isActive',
+      };
+      const sortColumn = allowedSortFields[sortBy || ''] || 'category.name';
+
       const query = this.categoryRepository
         .createQueryBuilder('category')
-        .leftJoinAndSelect(
-          'category.services',
-          'service',
-          'service.isActive = :serviceActive',
-          { serviceActive: true },
-        )
+        .leftJoin('category.services', 'service', 'service.isActive = :serviceActive', {
+          serviceActive: true,
+        })
+        .select([
+          'category.id',
+          'category.name',
+          'category.description',
+          'category.imageUrl',
+          'category.isActive',
+          'category.createdAt',
+          'service.id',
+          'service.categoryId',
+          'service.title',
+          'service.description',
+          'service.imageUrl',
+          'service.duration',
+          'service.price',
+          'service.isActive',
+          'service.createdAt',
+        ])
         .where('category.isActive = :active', { active: true })
-        .orderBy('category.name', 'ASC')
+        .orderBy(sortColumn, sortOrder)
         .addOrderBy('service.createdAt', 'DESC');
 
       if (search) {
-        query.andWhere('category.name ILIKE :search', { search: `%${search}%` });
+        query.andWhere('(CAST(category.id as text) ILIKE :search OR category.name ILIKE :search)', {
+          search: `%${search}%`,
+        });
       }
 
       if (paginationDto) {
@@ -68,13 +94,31 @@ export class CatalogService {
       return query.getMany();
     }
 
+    const allowedSortFields: Record<string, string> = {
+      name: 'category.name',
+      description: 'category.description',
+      createdAt: 'category.createdAt',
+      isActive: 'category.isActive',
+    };
+    const sortColumn = allowedSortFields[sortBy || ''] || 'category.name';
+
     const query = this.categoryRepository
       .createQueryBuilder('category')
+      .select([
+        'category.id',
+        'category.name',
+        'category.description',
+        'category.imageUrl',
+        'category.isActive',
+        'category.createdAt',
+      ])
       .where('category.isActive = :active', { active: true })
-      .orderBy('category.name', 'ASC');
+      .orderBy(sortColumn, sortOrder);
 
     if (search) {
-      query.andWhere('category.name ILIKE :search', { search: `%${search}%` });
+      query.andWhere('(CAST(category.id as text) ILIKE :search OR category.name ILIKE :search)', {
+        search: `%${search}%`,
+      });
     }
 
     if (paginationDto) {
@@ -182,14 +226,18 @@ export class CatalogService {
   async deleteCategory(id: string): Promise<void> {
     const category = await this.categoryRepository.findOne({
       where: { id },
-      relations: { services: true },
+      select: { id: true },
     });
 
     if (!category) {
       throw new NotFoundException('Category not found');
     }
 
-    if (category.services.length > 0) {
+    const hasServices = await this.serviceRepository.exist({
+      where: { categoryId: id },
+    });
+
+    if (hasServices) {
       throw new ConflictException('Cannot delete category with associated services');
     }
 
@@ -201,21 +249,50 @@ export class CatalogService {
     categoryId?: string,
     search?: string,
     paginationDto?: PaginationDto,
+    sortBy?: string,
+    sortOrder: 'ASC' | 'DESC' = 'DESC',
   ): Promise<PaginatedResponse<ServiceResponseDto> | ServiceResponseDto[]> {
+    const allowedSortFields: Record<string, string> = {
+      title: 'service.title',
+      category: 'category.name',
+      description: 'service.description',
+      duration: 'service.duration',
+      price: 'service.price',
+      isActive: 'service.isActive',
+      createdAt: 'service.createdAt',
+    };
+    const sortColumn = allowedSortFields[sortBy || ''] || 'service.createdAt';
+
     const query = this.serviceRepository
       .createQueryBuilder('service')
-      .leftJoinAndSelect('service.category', 'category')
+      .leftJoin('service.category', 'category')
+      .select([
+        'service.id',
+        'service.categoryId',
+        'service.title',
+        'service.description',
+        'service.imageUrl',
+        'service.duration',
+        'service.price',
+        'service.isActive',
+        'service.createdAt',
+        'category.id',
+        'category.name',
+      ])
       .where('service.isActive = :active', { active: true })
-      .orderBy('service.createdAt', 'DESC');
+      .orderBy(sortColumn, sortOrder);
 
     if (categoryId) {
       query.andWhere('service.categoryId = :categoryId', { categoryId });
     }
 
     if (search) {
-      query.andWhere('(service.title ILIKE :search OR service.description ILIKE :search)', {
-        search: `%${search}%`,
-      });
+      query.andWhere(
+        '(CAST(service.id as text) ILIKE :search OR service.title ILIKE :search OR service.description ILIKE :search)',
+        {
+          search: `%${search}%`,
+        },
+      );
     }
 
     if (paginationDto) {
@@ -243,6 +320,21 @@ export class CatalogService {
     const service = await this.serviceRepository.findOne({
       where: { id },
       relations: { category: true },
+      select: {
+        id: true,
+        categoryId: true,
+        title: true,
+        description: true,
+        imageUrl: true,
+        duration: true,
+        price: true,
+        isActive: true,
+        createdAt: true,
+        category: {
+          id: true,
+          name: true,
+        },
+      },
     });
 
     if (!service) {
@@ -262,10 +354,27 @@ export class CatalogService {
       throw new NotFoundException('Category not found');
     }
 
-    const created = await this.serviceRepository.save(this.serviceRepository.create(createServiceDto));
+    const created = await this.serviceRepository.save(
+      this.serviceRepository.create(createServiceDto),
+    );
     return this.serviceRepository.findOne({
       where: { id: created.id },
       relations: { category: true },
+      select: {
+        id: true,
+        categoryId: true,
+        title: true,
+        description: true,
+        imageUrl: true,
+        duration: true,
+        price: true,
+        isActive: true,
+        createdAt: true,
+        category: {
+          id: true,
+          name: true,
+        },
+      },
     }) as Promise<ServiceResponseDto>;
   }
 
@@ -293,6 +402,21 @@ export class CatalogService {
     return this.serviceRepository.findOne({
       where: { id },
       relations: { category: true },
+      select: {
+        id: true,
+        categoryId: true,
+        title: true,
+        description: true,
+        imageUrl: true,
+        duration: true,
+        price: true,
+        isActive: true,
+        createdAt: true,
+        category: {
+          id: true,
+          name: true,
+        },
+      },
     }) as Promise<ServiceResponseDto>;
   }
 

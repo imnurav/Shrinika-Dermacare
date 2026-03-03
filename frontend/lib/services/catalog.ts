@@ -14,9 +14,11 @@ export const catalogService = {
     includeServices = false,
     page = 1,
     limit = 10,
+    sortBy?: string,
+    sortOrder: 'ASC' | 'DESC' = 'ASC',
   ): Promise<PaginatedResponse<Category>> => {
     const response = await api.get<PaginatedResponse<Category>>("/catalog/categories", {
-      params: { search, includeServices, page, limit },
+      params: { search, includeServices, page, limit, sortBy, sortOrder },
     });
     return response.data;
   },
@@ -54,9 +56,11 @@ export const catalogService = {
     search?: string,
     page = 1,
     limit = 10,
+    sortBy?: string,
+    sortOrder: 'ASC' | 'DESC' = 'DESC',
   ): Promise<PaginatedResponse<Service>> => {
     const response = await api.get<PaginatedResponse<Service>>("/catalog/services", {
-      params: { categoryId, search, page, limit },
+      params: { categoryId, search, page, limit, sortBy, sortOrder },
     });
     return response.data;
   },

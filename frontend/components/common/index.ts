@@ -7,6 +7,9 @@ export { default as SearchFilterBar } from './SearchFilterBar';
 export { default as StatusBadge } from './StatusBadge';
 export { default as ErrorMessage } from './ErrorMessage';
 export { default as Pagination } from './Pagination';
+export { default as ConfirmModal } from './ConfirmModal';
+export { default as ModalActionFooter } from './ModalActionFooter';
+export { default as FormModal } from './FormModal';
 
 export type { PageHeaderProps } from './PageHeader';
 export type { ModalProps } from './Modal';

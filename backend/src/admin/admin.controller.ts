@@ -27,6 +27,7 @@ import { BookingResponseDto } from '../booking/dto/booking-response.dto';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { GetBookingsQueryDto } from '../booking/dto/get-bookings-query.dto';
+import { CreateAdminBookingDto } from './dto/create-admin-booking.dto';
 import { GetUsersQueryDto } from './dto/get-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateBookingDto } from '../booking/dto/update-booking.dto';
@@ -46,7 +47,11 @@ export class AdminController {
 
   @Get('analytics')
   @ApiOperation({ summary: 'Get dashboard analytics summary (Admin only)' })
-  @ApiResponse({ status: 200, description: 'Analytics retrieved successfully', type: DashboardAnalyticsDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Analytics retrieved successfully',
+    type: DashboardAnalyticsDto,
+  })
   async getDashboardAnalytics(): Promise<DashboardAnalyticsDto> {
     return this.adminService.getDashboardAnalytics();
   }
@@ -78,7 +83,20 @@ export class AdminController {
       query?.startDate,
       query?.endDate,
       query?.search,
+      query?.sortBy,
+      query?.sortOrder || 'DESC',
     );
+  }
+
+  @Post('bookings')
+  @ApiOperation({ summary: 'Create booking for any user (Admin only)' })
+  @ApiResponse({
+    status: 201,
+    description: 'Booking created successfully',
+    type: BookingResponseDto,
+  })
+  async createBookingForUser(@Body() createAdminBookingDto: CreateAdminBookingDto) {
+    return this.adminService.createBookingForUser(createAdminBookingDto);
   }
 
   @Get('bookings/:id')
@@ -131,13 +149,22 @@ export class AdminController {
     type: String,
     description: 'Search by name, email, or phone',
   })
+  @ApiQuery({ name: 'startDate', required: false, type: String, description: 'YYYY-MM-DD format' })
+  @ApiQuery({ name: 'endDate', required: false, type: String, description: 'YYYY-MM-DD format' })
   @ApiPaginationQuery()
   @ApiResponse({ status: 200, description: 'Users retrieved successfully' })
   async getAllUsers(
     @Query() query?: GetUsersQueryDto,
     @Pagination() paginationDto?: PaginationDto,
   ) {
-    return this.adminService.getAllUsers(paginationDto, query?.search);
+    return this.adminService.getAllUsers(
+      paginationDto,
+      query?.search,
+      query?.startDate,
+      query?.endDate,
+      query?.sortBy,
+      query?.sortOrder || 'DESC',
+    );
   }
 
   @Get('users/:id')
@@ -160,6 +187,7 @@ export class AdminController {
         phone: { type: 'string' },
         password: { type: 'string' },
         role: { type: 'string' },
+        gender: { type: 'string', enum: ['MALE', 'FEMALE', 'OTHER'] },
         file: { type: 'string', format: 'binary' },
       },
     },
@@ -185,6 +213,7 @@ export class AdminController {
         phone: { type: 'string' },
         imageUrl: { type: 'string' },
         role: { type: 'string' },
+        gender: { type: 'string', enum: ['MALE', 'FEMALE', 'OTHER'] },
         file: { type: 'string', format: 'binary' },
       },
     },

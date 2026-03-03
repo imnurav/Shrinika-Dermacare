@@ -28,6 +28,7 @@ export class UserService {
         email: true,
         phone: true,
         imageUrl: true,
+        gender: true,
         role: true,
         createdAt: true,
         updatedAt: true,
@@ -74,6 +75,10 @@ export class UserService {
       updateData.imageUrl = updateProfileDto.imageUrl;
     }
 
+    if (updateProfileDto.gender !== undefined) {
+      updateData.gender = updateProfileDto.gender;
+    }
+
     const existingUser = await this.userRepository.findOne({ where: { id: userId } });
     if (!existingUser) {
       throw new NotFoundException('User not found');
@@ -89,6 +94,7 @@ export class UserService {
         email: true,
         phone: true,
         imageUrl: true,
+        gender: true,
         role: true,
         createdAt: true,
         updatedAt: true,
@@ -120,6 +126,18 @@ export class UserService {
   async getAddresses(userId: string): Promise<AddressResponseDto[]> {
     const addresses = await this.addressRepository.find({
       where: { userId },
+      select: {
+        id: true,
+        userId: true,
+        label: true,
+        addressLine1: true,
+        addressLine2: true,
+        city: true,
+        state: true,
+        pincode: true,
+        latitude: true,
+        longitude: true,
+      },
       order: { createdAt: 'DESC' },
     });
 

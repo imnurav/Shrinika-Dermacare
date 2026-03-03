@@ -83,6 +83,18 @@ svg,
 button:not(:disabled),
 a,
 select,
-[role='button'] {
+[role='button'],
+label[for],
+summary,
+input[type='checkbox'],
+input[type='radio'],
+input[type='file'],
+[aria-expanded],
+[aria-controls] {
   cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
 }

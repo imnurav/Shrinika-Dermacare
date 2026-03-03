@@ -6,7 +6,7 @@ import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from '../user/entities/user.entity';
+import { User, UserGender } from '../user/entities/user.entity';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -19,7 +19,7 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
-    const { name, email, phone, password, imageUrl } = registerDto;
+    const { name, email, phone, password, imageUrl, gender } = registerDto;
 
     // Check if user already exists
     if (email) {
@@ -47,6 +47,7 @@ export class AuthService {
         phone,
         password: hashedPassword,
         imageUrl,
+        gender: gender ?? UserGender.OTHER,
       }),
     );
 
@@ -56,6 +57,7 @@ export class AuthService {
       email: createdUser.email,
       phone: createdUser.phone,
       imageUrl: createdUser.imageUrl,
+      gender: createdUser.gender,
       role: createdUser.role,
     };
 
@@ -99,6 +101,7 @@ export class AuthService {
       email: user.email,
       phone: user.phone,
       imageUrl: user.imageUrl,
+      gender: user.gender,
       role: user.role,
     };
 

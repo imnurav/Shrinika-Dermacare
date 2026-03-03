@@ -15,4 +15,14 @@ export class GetCategoriesQueryDto extends PaginationDto {
   @IsOptional()
   @IsString()
   includeServices?: string;
+
+  @ApiPropertyOptional({ type: String, description: 'Sort field (name, createdAt, isActive)' })
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @ApiPropertyOptional({ enum: ['ASC', 'DESC'], default: 'ASC' })
+  @IsOptional()
+  @IsString()
+  sortOrder?: 'ASC' | 'DESC';
 }

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useCallback, useEffect } from 'react';
-import { PaginatedResponse } from '../types';
 import { getErrorMessage } from '../utils/errorHandler';
+import { PaginatedResponse } from '../types';
 
 export interface UseCRUDOptions<T> {
   initialPage?: number;

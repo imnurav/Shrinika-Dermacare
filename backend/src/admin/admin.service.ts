@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { UpdateBookingStatusDto } from '../booking/dto/update-booking-status.dto';
 import { DashboardAnalyticsDto } from './dto/dashboard-analytics.dto';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
+import { CreateAdminBookingDto } from './dto/create-admin-booking.dto';
 import { BookingResponseDto } from '../booking/dto/booking-response.dto';
 import { BookingService } from '../booking/booking.service';
 import { UploadService } from '../upload/upload.service';
@@ -26,6 +27,18 @@ export class AdminService {
     private bookingService: BookingService,
     private uploadService: UploadService,
   ) {}
+
+  private readonly adminUserSafeSelect = {
+    id: true,
+    name: true,
+    email: true,
+    phone: true,
+    imageUrl: true,
+    gender: true,
+    role: true,
+    createdAt: true,
+    updatedAt: true,
+  } as const;
 
   async getDashboardAnalytics(): Promise<DashboardAnalyticsDto> {
     const [totalUsers, totalCategories, totalServices, totalBookings, statusRows, recentBookings] =
@@ -77,8 +90,18 @@ export class AdminService {
     startDate?: string,
     endDate?: string,
     search?: string,
+    sortBy?: string,
+    sortOrder: 'ASC' | 'DESC' = 'DESC',
   ): Promise<PaginatedResponse<BookingResponseDto> | BookingResponseDto[]> {
-    return this.bookingService.getAllBookings(paginationDto, status, startDate, endDate, search);
+    return this.bookingService.getAllBookings(
+      paginationDto,
+      status,
+      startDate,
+      endDate,
+      search,
+      sortBy,
+      sortOrder,
+    );
   }
 
   async getBookingById(bookingId: string): Promise<BookingResponseDto> {
@@ -96,7 +119,21 @@ export class AdminService {
   async getAllUsers(
     paginationDto?: PaginationDto,
     search?: string,
+    startDate?: string,
+    endDate?: string,
+    sortBy?: string,
+    sortOrder: 'ASC' | 'DESC' = 'DESC',
   ): Promise<PaginatedResponse<any> | any[]> {
+    const allowedSortFields: Record<string, string> = {
+      name: 'user.name',
+      email: 'user.email',
+      phone: 'user.phone',
+      role: 'user.role',
+      gender: 'user.gender',
+      createdAt: 'user.createdAt',
+    };
+    const sortColumn = allowedSortFields[sortBy || ''] || 'user.createdAt';
+
     const query = this.userRepository
       .createQueryBuilder('user')
       .select([
@@ -105,16 +142,21 @@ export class AdminService {
         'user.email',
         'user.phone',
         'user.imageUrl',
+        'user.gender',
         'user.role',
         'user.createdAt',
-        'user.updatedAt',
       ])
-      .orderBy('user.createdAt', 'DESC');
+      .orderBy(sortColumn, sortOrder);
 
     if (search) {
-      query.where('(user.name ILIKE :search OR user.email ILIKE :search OR user.phone ILIKE :search)', {
+      query.where('(CAST(user.id as text) ILIKE :search OR user.name ILIKE :search OR user.email ILIKE :search OR user.phone ILIKE :search)', {
         search: `%${search}%`,
       });
+    }
+
+    if (startDate && endDate) {
+      query.andWhere('DATE(user.createdAt) >= :startDate', { startDate });
+      query.andWhere('DATE(user.createdAt) <= :endDate', { endDate });
     }
 
     if (paginationDto) {
@@ -141,13 +183,21 @@ export class AdminService {
   async getUserById(userId: string) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
+      select: {
+        ...this.adminUserSafeSelect,
+        addresses: {
+          id: true,
+          userId: true,
+          label: true,
+          addressLine1: true,
+          addressLine2: true,
+          city: true,
+          state: true,
+          pincode: true,
+        },
+      },
       relations: {
         addresses: true,
-        bookings: {
-          bookingServices: {
-            service: true,
-          },
-        },
       },
     });
 
@@ -207,9 +257,13 @@ export class AdminService {
       data.imageUrl = updateUserDto.imageUrl;
     }
     if (updateUserDto.role !== undefined) data.role = updateUserDto.role;
+    if (updateUserDto.gender !== undefined) data.gender = updateUserDto.gender;
 
     await this.userRepository.update({ id: userId }, data);
-    return this.userRepository.findOne({ where: { id: userId } });
+    return this.userRepository.findOne({
+      where: { id: userId },
+      select: this.adminUserSafeSelect,
+    });
   }
 
   async createUser(actor: any, createUserDto: any, file?: Express.Multer.File) {
@@ -220,6 +274,7 @@ export class AdminService {
 
     // Determine role for new user
     const roleToAssign = createUserDto.role ?? UserRole.USER;
+    const genderToAssign = createUserDto.gender;
 
     if (actorRole === UserRole.SUPERADMIN) {
       // allowed to assign any role
@@ -262,6 +317,7 @@ export class AdminService {
         phone: createUserDto.phone,
         password: hashed,
         imageUrl,
+        gender: genderToAssign,
         role: roleToAssign,
       }),
     );
@@ -272,6 +328,7 @@ export class AdminService {
       email: created.email,
       phone: created.phone,
       imageUrl: created.imageUrl,
+      gender: created.gender,
       role: created.role,
     };
   }
@@ -279,6 +336,11 @@ export class AdminService {
   async updateBookingByAdmin(bookingId: string, updateBookingDto: any) {
     // Delegate to booking service which owns booking logic
     return this.bookingService.updateBookingAsAdmin(bookingId, updateBookingDto);
+  }
+
+  async createBookingForUser(createAdminBookingDto: CreateAdminBookingDto): Promise<BookingResponseDto> {
+    const { userId, ...bookingData } = createAdminBookingDto;
+    return this.bookingService.createBooking(userId, bookingData);
   }
 
   async deleteUser(actor: any, userId: string): Promise<void> {

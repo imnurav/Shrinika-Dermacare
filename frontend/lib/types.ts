@@ -4,6 +4,12 @@ export enum UserRole {
   SUPERADMIN = 'SUPERADMIN',
 }
 
+export enum UserGender {
+  MALE = 'MALE',
+  FEMALE = 'FEMALE',
+  OTHER = 'OTHER',
+}
+
 export enum BookingStatus {
   PENDING = 'PENDING',
   CONFIRMED = 'CONFIRMED',
@@ -17,6 +23,7 @@ export interface User {
   email?: string;
   phone?: string;
   imageUrl?: string;
+  gender: UserGender;
   role: UserRole;
   createdAt?: string;
   updatedAt?: string;

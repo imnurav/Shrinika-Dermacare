@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { AxiosRequestHeaders } from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/';
 
@@ -21,7 +22,7 @@ api.interceptors.request.use((config) => {
   if (config.data instanceof FormData) {
     if (config.headers) {
       // Remove explicit content-type so browser sets the multipart boundary
-      delete (config.headers as any)['Content-Type'];
+      delete (config.headers as AxiosRequestHeaders)['Content-Type'];
     }
   }
   return config;
@@ -43,4 +44,3 @@ api.interceptors.response.use(
 );
 
 export default api;
-

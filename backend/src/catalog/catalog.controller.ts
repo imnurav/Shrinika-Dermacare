@@ -60,7 +60,13 @@ export class CatalogController {
     @Pagination() paginationDto?: PaginationDto,
   ) {
     const includeServices = query?.includeServices === 'true';
-    return this.catalogService.getCategories(query?.search, includeServices, paginationDto);
+    return this.catalogService.getCategories(
+      query?.search,
+      includeServices,
+      paginationDto,
+      query?.sortBy,
+      query?.sortOrder || 'ASC',
+    );
   }
 
   @Public()
@@ -161,7 +167,13 @@ export class CatalogController {
     @Query() query?: GetServicesQueryDto,
     @Pagination() paginationDto?: PaginationDto,
   ): Promise<PaginatedResponse<ServiceResponseDto> | ServiceResponseDto[]> {
-    return this.catalogService.getServices(query?.categoryId, query?.search, paginationDto);
+    return this.catalogService.getServices(
+      query?.categoryId,
+      query?.search,
+      paginationDto,
+      query?.sortBy,
+      query?.sortOrder || 'DESC',
+    );
   }
 
   @Public()

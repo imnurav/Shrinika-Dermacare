@@ -2,7 +2,7 @@ import { BookingService as BookingServiceEntity } from '../booking/entities/book
 import { Booking, BookingStatus } from '../booking/entities/booking.entity';
 import { Category } from '../catalog/entities/category.entity';
 import { Service } from '../catalog/entities/service.entity';
-import { User, UserRole } from '../user/entities/user.entity';
+import { User, UserGender, UserRole } from '../user/entities/user.entity';
 import { Address } from '../user/entities/address.entity';
 import dataSource from '../config/typeorm.datasource';
 import * as bcrypt from 'bcrypt';
@@ -159,6 +159,7 @@ async function upsertUser(params: {
   phone?: string;
   passwordHash: string;
   role: UserRole;
+  gender?: UserGender;
   imageUrl?: string;
 }): Promise<User> {
   const userRepo = dataSource.getRepository(User);
@@ -172,6 +173,7 @@ async function upsertUser(params: {
     existing.name = params.name;
     existing.password = params.passwordHash;
     existing.role = params.role;
+    existing.gender = params.gender ?? existing.gender ?? UserGender.OTHER;
     existing.imageUrl = params.imageUrl;
     existing.phone = params.phone ?? existing.phone;
     existing.email = params.email ?? existing.email;
@@ -184,6 +186,7 @@ async function upsertUser(params: {
       email: params.email,
       phone: params.phone,
       password: params.passwordHash,
+      gender: params.gender ?? UserGender.OTHER,
       role: params.role,
       imageUrl: params.imageUrl,
     }),
@@ -391,6 +394,7 @@ async function seedBulkUsersAndBookings(params: {
     BookingStatus.COMPLETED,
     BookingStatus.CANCELLED,
   ] as const;
+  const genders = [UserGender.MALE, UserGender.FEMALE, UserGender.OTHER] as const;
   const slots = ['09:30:00', '11:00:00', '13:30:00', '16:00:00', '18:15:00'];
 
   for (let i = 1; i <= userCount; i += 1) {
@@ -402,6 +406,7 @@ async function seedBulkUsersAndBookings(params: {
       phone: `90010${String(10000 + i).slice(-5)}`,
       passwordHash: params.customerPasswordHash,
       role: UserRole.USER,
+      gender: genders[(i - 1) % genders.length],
     });
 
     const homeAddress = await upsertAddress(user.id, {
@@ -454,6 +459,7 @@ async function main() {
     phone: '9876540402',
     passwordHash: adminPasswordHash,
     role: UserRole.ADMIN,
+    gender: UserGender.MALE,
   });
 
   const superAdmin = await upsertUser({
@@ -462,6 +468,7 @@ async function main() {
     phone: '9876500000',
     passwordHash: superAdminPasswordHash,
     role: UserRole.SUPERADMIN,
+    gender: UserGender.MALE,
   });
 
   const riya = await upsertUser({
@@ -470,6 +477,7 @@ async function main() {
     phone: '9876501001',
     passwordHash: customerPasswordHash,
     role: UserRole.USER,
+    gender: UserGender.FEMALE,
   });
   const neha = await upsertUser({
     name: 'Neha Patel',
@@ -477,6 +485,7 @@ async function main() {
     phone: '9876501002',
     passwordHash: customerPasswordHash,
     role: UserRole.USER,
+    gender: UserGender.FEMALE,
   });
   const ananya = await upsertUser({
     name: 'Ananya Gupta',
@@ -484,6 +493,7 @@ async function main() {
     phone: '9876501003',
     passwordHash: customerPasswordHash,
     role: UserRole.USER,
+    gender: UserGender.FEMALE,
   });
   const servicesMap = await seedCatalog();
   await seedExtraCatalog();

@@ -1,5 +1,7 @@
 import { IsString, IsEmail, IsOptional, IsUrl } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { UserGender } from '../entities/user.entity';
+import { IsEnum } from 'class-validator';
 
 export class UpdateProfileDto {
   @ApiPropertyOptional({ example: 'John Doe' })
@@ -25,4 +27,9 @@ export class UpdateProfileDto {
   @IsString()
   @IsUrl({}, { message: 'imageUrl must be a valid URL' })
   imageUrl?: string;
+
+  @ApiPropertyOptional({ enum: UserGender, default: UserGender.OTHER })
+  @IsOptional()
+  @IsEnum(UserGender)
+  gender?: UserGender;
 }

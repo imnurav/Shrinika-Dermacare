@@ -31,7 +31,41 @@ export class BookingService {
 
   private readonly bookingRelations = {
     address: true,
-    bookingServices: { service: { category: true } },
+    bookingServices: { service: true },
+  } as const;
+
+  private readonly bookingDetailSelect = {
+    id: true,
+    userId: true,
+    addressId: true,
+    personName: true,
+    personPhone: true,
+    preferredDate: true,
+    preferredTime: true,
+    notes: true,
+    status: true,
+    createdAt: true,
+    updatedAt: true,
+    address: {
+      id: true,
+      label: true,
+      addressLine1: true,
+      addressLine2: true,
+      city: true,
+      state: true,
+      pincode: true,
+    },
+    bookingServices: {
+      id: true,
+      bookingId: true,
+      serviceId: true,
+      service: {
+        id: true,
+        title: true,
+        duration: true,
+        price: true,
+      },
+    },
   } as const;
 
   private parseTimeToMinutes(value: string): number | null {
@@ -145,6 +179,7 @@ export class BookingService {
     const booking = await this.bookingRepository.findOne({
       where: { id: bookingId },
       relations: this.bookingRelations,
+      select: this.bookingDetailSelect,
     });
 
     return booking as BookingResponseDto;
@@ -161,7 +196,6 @@ export class BookingService {
     }
 
     const data: Partial<Booking> = {};
-    const manualOverride = Boolean(updateBookingDto.manualOverride);
 
     if (updateBookingDto.personName !== undefined) data.personName = updateBookingDto.personName;
     if (updateBookingDto.personPhone !== undefined) data.personPhone = updateBookingDto.personPhone;
@@ -176,9 +210,14 @@ export class BookingService {
         ? updateBookingDto.preferredDate
         : booking.preferredDate.toISOString().slice(0, 10);
     const effectiveTime =
-      updateBookingDto.preferredTime !== undefined ? updateBookingDto.preferredTime : booking.preferredTime;
+      updateBookingDto.preferredTime !== undefined
+        ? updateBookingDto.preferredTime
+        : booking.preferredTime;
 
-    if (!manualOverride && (updateBookingDto.preferredDate !== undefined || updateBookingDto.preferredTime !== undefined)) {
+    if (
+      updateBookingDto.preferredDate !== undefined ||
+      updateBookingDto.preferredTime !== undefined
+    ) {
       this.validatePreferredSlot(effectiveDate, effectiveTime);
     }
 
@@ -214,6 +253,7 @@ export class BookingService {
     const updated = await this.bookingRepository.findOne({
       where: { id: bookingId },
       relations: this.bookingRelations,
+      select: this.bookingDetailSelect,
     });
     return updated as BookingResponseDto;
   }
@@ -225,10 +265,31 @@ export class BookingService {
   ): Promise<PaginatedResponse<BookingResponseDto> | BookingResponseDto[]> {
     const query = this.bookingRepository
       .createQueryBuilder('booking')
-      .leftJoinAndSelect('booking.address', 'address')
-      .leftJoinAndSelect('booking.bookingServices', 'bookingService')
-      .leftJoinAndSelect('bookingService.service', 'service')
-      .leftJoinAndSelect('service.category', 'category')
+      .leftJoin('booking.address', 'address')
+      .leftJoin('booking.bookingServices', 'bookingService')
+      .leftJoin('bookingService.service', 'service')
+      .select([
+        'booking.id',
+        'booking.userId',
+        'booking.addressId',
+        'booking.personName',
+        'booking.personPhone',
+        'booking.preferredDate',
+        'booking.preferredTime',
+        'booking.notes',
+        'booking.status',
+        'booking.createdAt',
+        'booking.updatedAt',
+        'address.id',
+        'address.label',
+        'address.addressLine1',
+        'address.city',
+        'bookingService.id',
+        'bookingService.bookingId',
+        'bookingService.serviceId',
+        'service.id',
+        'service.title',
+      ])
       .where('booking.userId = :userId', { userId })
       .orderBy('booking.createdAt', 'DESC');
 
@@ -265,6 +326,7 @@ export class BookingService {
     const booking = await this.bookingRepository.findOne({
       where: { id: bookingId },
       relations: this.bookingRelations,
+      select: this.bookingDetailSelect,
     });
 
     if (!booking) {
@@ -302,6 +364,7 @@ export class BookingService {
     return (await this.bookingRepository.findOne({
       where: { id: bookingId },
       relations: this.bookingRelations,
+      select: this.bookingDetailSelect,
     })) as BookingResponseDto;
   }
 
@@ -325,6 +388,7 @@ export class BookingService {
     return (await this.bookingRepository.findOne({
       where: { id: bookingId },
       relations: this.bookingRelations,
+      select: this.bookingDetailSelect,
     })) as BookingResponseDto;
   }
 
@@ -334,32 +398,65 @@ export class BookingService {
     startDate?: string,
     endDate?: string,
     search?: string,
+    sortBy?: string,
+    sortOrder: 'ASC' | 'DESC' = 'DESC',
   ): Promise<PaginatedResponse<BookingResponseDto> | BookingResponseDto[]> {
+    const allowedSortFields: Record<string, string> = {
+      personName: 'booking.personName',
+      personPhone: 'booking.personPhone',
+      preferredDate: 'booking.preferredDate',
+      preferredTime: 'booking.preferredTime',
+      status: 'booking.status',
+      createdAt: 'booking.createdAt',
+    };
+    const sortColumn = allowedSortFields[sortBy || ''] || 'booking.createdAt';
+
     const query = this.bookingRepository
       .createQueryBuilder('booking')
-      .leftJoinAndSelect('booking.address', 'address')
-      .leftJoinAndSelect('booking.bookingServices', 'bookingService')
-      .leftJoinAndSelect('bookingService.service', 'service')
-      .leftJoinAndSelect('service.category', 'category')
-      .orderBy('booking.createdAt', 'DESC');
+      .leftJoin('booking.address', 'address')
+      .leftJoin('booking.bookingServices', 'bookingService')
+      .leftJoin('bookingService.service', 'service')
+      .select([
+        'booking.id',
+        'booking.userId',
+        'booking.addressId',
+        'booking.personName',
+        'booking.personPhone',
+        'booking.preferredDate',
+        'booking.preferredTime',
+        'booking.notes',
+        'booking.status',
+        'booking.createdAt',
+        'booking.updatedAt',
+        'address.id',
+        'address.label',
+        'address.addressLine1',
+        'address.city',
+        'bookingService.id',
+        'bookingService.bookingId',
+        'bookingService.serviceId',
+        'service.id',
+        'service.title',
+      ])
+      .orderBy(sortColumn, sortOrder);
 
     if (search) {
-      query.andWhere('(booking.personName ILIKE :search OR booking.personPhone ILIKE :search)', {
-        search: `%${search}%`,
-      });
+      query.andWhere(
+        '(CAST(booking.id as text) ILIKE :search OR booking.personName ILIKE :search OR booking.personPhone ILIKE :search)',
+        {
+          search: `%${search}%`,
+        },
+      );
     }
 
     if (status) {
       query.andWhere('booking.status = :status', { status });
     }
 
-    if (startDate) {
+    if (startDate && endDate) {
       query.andWhere('booking.preferredDate >= :startDate', {
         startDate: new Date(startDate),
       });
-    }
-
-    if (endDate) {
       query.andWhere('booking.preferredDate <= :endDate', {
         endDate: new Date(endDate),
       });

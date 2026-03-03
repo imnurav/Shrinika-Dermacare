@@ -23,4 +23,17 @@ export class GetBookingsQueryDto extends PaginationDto {
   @IsOptional()
   @IsString()
   endDate?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    description: 'Sort field (personName, personPhone, preferredDate, preferredTime, status, createdAt)',
+  })
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @ApiPropertyOptional({ enum: ['ASC', 'DESC'], default: 'DESC' })
+  @IsOptional()
+  @IsString()
+  sortOrder?: 'ASC' | 'DESC';
 }

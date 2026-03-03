@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { X } from 'lucide-react';
 
 export interface ModalProps {
@@ -26,34 +26,15 @@ export const Modal: React.FC<ModalProps> = ({
   footer,
   size = 'md',
 }) => {
-  const [isRendered, setIsRendered] = useState(isOpen);
-  const [isVisible, setIsVisible] = useState(isOpen);
-
-  useEffect(() => {
-    if (isOpen) {
-      setIsRendered(true);
-      requestAnimationFrame(() => setIsVisible(true));
-      return;
-    }
-
-    setIsVisible(false);
-    const timer = setTimeout(() => setIsRendered(false), 180);
-    return () => clearTimeout(timer);
-  }, [isOpen]);
-
-  if (!isRendered) return null;
+  if (!isOpen) return null;
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-200 ${
-        isVisible ? 'bg-slate-900/35 backdrop-blur-sm' : 'bg-slate-900/0 backdrop-blur-0'
-      }`}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className={`w-full overflow-y-auto rounded-xl bg-white shadow-lg ${sizeClasses[size]} max-h-[90vh] transition-all duration-200 ${
-          isVisible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-2 scale-95 opacity-0'
-        }`}
+        className={`max-h-[90vh] w-full overflow-y-auto rounded-xl bg-white shadow-lg ${sizeClasses[size]}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

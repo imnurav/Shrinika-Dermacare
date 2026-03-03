@@ -15,6 +15,12 @@ export enum UserRole {
   SUPERADMIN = 'SUPERADMIN',
 }
 
+export enum UserGender {
+  MALE = 'MALE',
+  FEMALE = 'FEMALE',
+  OTHER = 'OTHER',
+}
+
 @Entity({ name: 'users' })
 // @Index('idx_users_created_at', ['createdAt'])
 // @Check('chk_users_contact_present', '"email" IS NOT NULL OR "phone" IS NOT NULL')
@@ -36,6 +42,13 @@ export class User {
 
   @Column({ nullable: true, length: 1024 })
   imageUrl?: string;
+
+  @Column({
+    type: 'enum',
+    enum: UserGender,
+    default: UserGender.OTHER,
+  })
+  gender: UserGender;
 
   @Column({
     type: 'enum',

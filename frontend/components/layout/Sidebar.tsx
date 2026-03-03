@@ -27,6 +27,7 @@ type SidebarProps = {
   mobileOpen: boolean;
   onToggleCollapsed: () => void;
   onMobileClose: () => void;
+  onNavigate?: () => void;
 };
 
 export default function Sidebar({
@@ -34,8 +35,15 @@ export default function Sidebar({
   mobileOpen,
   onToggleCollapsed,
   onMobileClose,
+  onNavigate,
 }: SidebarProps) {
   const pathname = usePathname();
+  const isActiveRoute = (href: string) => {
+    if (href === '/dashboard') {
+      return pathname === '/dashboard';
+    }
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
 
   return (
     <>
@@ -83,12 +91,15 @@ export default function Sidebar({
           <nav className="flex-1 p-4 space-y-2">
             {menuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href;
+              const isActive = isActiveRoute(item.href);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  onClick={onMobileClose}
+                  onClick={() => {
+                    onNavigate?.();
+                    onMobileClose();
+                  }}
                   className={`
                     flex items-center ${collapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg
                     transition-all duration-200

@@ -1,8 +1,10 @@
 import api from '../api';
 import { PaginatedResponse } from '../types';
 
+type ListParams = Record<string, string | number | boolean | undefined>;
+
 export interface CRUDService<T> {
-  list: (params?: any) => Promise<PaginatedResponse<T> | T[]>;
+  list: (params?: ListParams) => Promise<PaginatedResponse<T> | T[]>;
   get: (id: string) => Promise<T>;
   create: (data: Partial<T>) => Promise<T>;
   update: (id: string, data: Partial<T>) => Promise<T>;
@@ -11,7 +13,7 @@ export interface CRUDService<T> {
 
 export const createCRUDService = <T>(baseUrl: string): CRUDService<T> => {
   return {
-    list: async (params?: any) => {
+    list: async (params?: ListParams) => {
       const response = await api.get(baseUrl, { params });
       return response.data;
     },

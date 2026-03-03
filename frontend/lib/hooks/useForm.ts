@@ -1,6 +1,6 @@
 'use client';
-import { useState } from 'react';
 import { getErrorMessage } from '../utils/errorHandler';
+import { useState } from 'react';
 
 export interface UseFormOptions<T> {
   onSubmit?: (data: T) => Promise<void>;
@@ -9,13 +9,13 @@ export interface UseFormOptions<T> {
   initialData?: T;
 }
 
-export const useForm = <T extends Record<string, any>>(options: UseFormOptions<T>) => {
+export const useForm = <T extends Record<string, unknown>>(options: UseFormOptions<T>) => {
   const [formData, setFormData] = useState<T>(options.initialData || ({} as T));
   const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleChange = (field: keyof T, value: any) => {
+  const handleChange = <K extends keyof T>(field: K, value: T[K]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     // Clear error for this field when user starts typing
     if (errors[field]) {
