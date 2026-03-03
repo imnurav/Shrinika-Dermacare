@@ -35,8 +35,8 @@ export default function DashboardHeader({ onMenuClick, routeLoading = false }: D
     return () => document.removeEventListener('mousedown', clickListener);
   }, []);
 
-  const logout = () => {
-    authService.logout();
+  const logout = async () => {
+    await authService.logout();
     router.push('/login');
   };
 

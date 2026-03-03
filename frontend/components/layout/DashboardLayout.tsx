@@ -1,15 +1,18 @@
 'use client';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import TopLoader from '@/components/common/TopLoader';
 import { useEffect, useState } from 'react';
-import { authService } from '@/lib/services/auth';
+import { User } from '@/lib/types';
 import { CurrentUserProvider } from '@/lib/context/CurrentUserContext';
 import DashboardHeader from './DashboardHeader';
 import Sidebar from './Sidebar';
 
+export type DashboardLayoutProps = {
+  children: React.ReactNode;
+  initialUser?: User | null;
+};
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
+export default function DashboardLayout({ children, initialUser }: DashboardLayoutProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -17,15 +20,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [routeLoading, setRouteLoading] = useState(false);
-
-  useEffect(() => {
-    const user = authService.getCurrentUser();
-    const token = authService.getToken();
-
-    if (!token || !user || (user.role !== 'ADMIN' && user.role !== 'SUPERADMIN')) {
-      router.push('/login');
-    }
-  }, [router]);
 
   const handleToggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -42,7 +36,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [pathname, routeLoading]);
 
   return (
-    <CurrentUserProvider>
+    <CurrentUserProvider initialUser={initialUser ?? null}>
       <div className="flex h-screen overflow-hidden bg-slate-50">
         <TopLoader loading={routeLoading} />
         <Sidebar

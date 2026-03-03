@@ -11,8 +11,8 @@ type CurrentUserContextValue = {
 
 const CurrentUserContext = createContext<CurrentUserContextValue | undefined>(undefined);
 
-export function CurrentUserProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<User | null>(() => authService.getCurrentUser());
+export function CurrentUserProvider({ children, initialUser = null }: { children: React.ReactNode; initialUser?: User | null }) {
+    const [user, setUser] = useState<User | null>(() => initialUser ?? authService.getCurrentUser());
 
     const refreshUser = () => {
         setUser(authService.getCurrentUser());
