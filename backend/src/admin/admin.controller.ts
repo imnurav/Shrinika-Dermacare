@@ -8,6 +8,8 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { UpdateBookingStatusDto } from '../booking/dto/update-booking-status.dto';
+import { DashboardAnalyticsDto } from './dto/dashboard-analytics.dto';
+import { ApiPaginationQuery, Pagination } from '../common/decorators/pagination.decorator';
 import {
   Controller,
   Get,
@@ -16,6 +18,7 @@ import {
   Query,
   Body,
   Post,
+  Delete,
   UseInterceptors,
   UploadedFile,
 } from '@nestjs/common';
@@ -24,6 +27,7 @@ import { BookingResponseDto } from '../booking/dto/booking-response.dto';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { GetBookingsQueryDto } from '../booking/dto/get-bookings-query.dto';
+import { CreateAdminBookingDto } from './dto/create-admin-booking.dto';
 import { GetUsersQueryDto } from './dto/get-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateBookingDto } from '../booking/dto/update-booking.dto';
@@ -31,8 +35,8 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { AdminService } from './admin.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
-import { BookingStatus } from '@prisma/client';
-import { UserRole } from '@prisma/client';
+import { BookingStatus } from '../booking/entities/booking.entity';
+import { UserRole } from '../user/entities/user.entity';
 
 @ApiTags('Admin')
 @ApiBearerAuth('JWT-auth')
@@ -40,6 +44,17 @@ import { UserRole } from '@prisma/client';
 @Controller('admin')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
+
+  @Get('analytics')
+  @ApiOperation({ summary: 'Get dashboard analytics summary (Admin only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Analytics retrieved successfully',
+    type: DashboardAnalyticsDto,
+  })
+  async getDashboardAnalytics(): Promise<DashboardAnalyticsDto> {
+    return this.adminService.getDashboardAnalytics();
+  }
 
   @Get('bookings')
   @ApiOperation({ summary: 'Get all bookings (Admin only)' })
@@ -52,22 +67,36 @@ export class AdminController {
   @ApiQuery({ name: 'status', required: false, enum: BookingStatus })
   @ApiQuery({ name: 'startDate', required: false, type: String, description: 'YYYY-MM-DD format' })
   @ApiQuery({ name: 'endDate', required: false, type: String, description: 'YYYY-MM-DD format' })
+  @ApiPaginationQuery()
   @ApiResponse({
     status: 200,
     description: 'Bookings retrieved successfully',
     type: [BookingResponseDto],
   })
-  async getAllBookings(@Query() query?: GetBookingsQueryDto) {
-    const paginationDto: PaginationDto | undefined = query
-      ? { page: query.page, limit: query.limit }
-      : undefined;
+  async getAllBookings(
+    @Query() query?: GetBookingsQueryDto,
+    @Pagination() paginationDto?: PaginationDto,
+  ) {
     return this.adminService.getAllBookings(
       paginationDto,
       query?.status,
       query?.startDate,
       query?.endDate,
       query?.search,
+      query?.sortBy,
+      query?.sortOrder || 'DESC',
     );
+  }
+
+  @Post('bookings')
+  @ApiOperation({ summary: 'Create booking for any user (Admin only)' })
+  @ApiResponse({
+    status: 201,
+    description: 'Booking created successfully',
+    type: BookingResponseDto,
+  })
+  async createBookingForUser(@Body() createAdminBookingDto: CreateAdminBookingDto) {
+    return this.adminService.createBookingForUser(createAdminBookingDto);
   }
 
   @Get('bookings/:id')
@@ -120,12 +149,22 @@ export class AdminController {
     type: String,
     description: 'Search by name, email, or phone',
   })
+  @ApiQuery({ name: 'startDate', required: false, type: String, description: 'YYYY-MM-DD format' })
+  @ApiQuery({ name: 'endDate', required: false, type: String, description: 'YYYY-MM-DD format' })
+  @ApiPaginationQuery()
   @ApiResponse({ status: 200, description: 'Users retrieved successfully' })
-  async getAllUsers(@Query() query?: GetUsersQueryDto) {
-    const paginationDto: PaginationDto | undefined = query
-      ? { page: query.page, limit: query.limit }
-      : undefined;
-    return this.adminService.getAllUsers(paginationDto, query?.search);
+  async getAllUsers(
+    @Query() query?: GetUsersQueryDto,
+    @Pagination() paginationDto?: PaginationDto,
+  ) {
+    return this.adminService.getAllUsers(
+      paginationDto,
+      query?.search,
+      query?.startDate,
+      query?.endDate,
+      query?.sortBy,
+      query?.sortOrder || 'DESC',
+    );
   }
 
   @Get('users/:id')
@@ -148,6 +187,7 @@ export class AdminController {
         phone: { type: 'string' },
         password: { type: 'string' },
         role: { type: 'string' },
+        gender: { type: 'string', enum: ['MALE', 'FEMALE', 'OTHER'] },
         file: { type: 'string', format: 'binary' },
       },
     },
@@ -173,6 +213,7 @@ export class AdminController {
         phone: { type: 'string' },
         imageUrl: { type: 'string' },
         role: { type: 'string' },
+        gender: { type: 'string', enum: ['MALE', 'FEMALE', 'OTHER'] },
         file: { type: 'string', format: 'binary' },
       },
     },
@@ -187,5 +228,15 @@ export class AdminController {
     @UploadedFile() file?: Express.Multer.File,
   ) {
     return this.adminService.updateUser(actor, userId, updateUserDto, file);
+  }
+
+  @Delete('users/:id')
+  @ApiOperation({ summary: 'Delete user (Admin/Superadmin with role rules)' })
+  @ApiResponse({ status: 200, description: 'User deleted successfully' })
+  @ApiResponse({ status: 403, description: 'Permission denied', type: ErrorResponseDto })
+  @ApiResponse({ status: 404, description: 'User not found', type: ErrorResponseDto })
+  async deleteUser(@CurrentUser() actor: any, @Param('id') userId: string) {
+    await this.adminService.deleteUser(actor, userId);
+    return { success: true };
   }
 }

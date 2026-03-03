@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { UserGender, UserRole } from '../../user/entities/user.entity';
 
 export class UserResponseDto {
   @ApiProperty()
@@ -16,6 +16,9 @@ export class UserResponseDto {
 
   @ApiProperty({ required: false, example: 'https://example.com/images/profile.jpg' })
   imageUrl?: string;
+
+  @ApiProperty({ enum: UserGender, default: UserGender.OTHER })
+  gender: UserGender;
 
   @ApiProperty({ enum: UserRole })
   role: UserRole;

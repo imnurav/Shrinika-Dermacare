@@ -1,8 +1,8 @@
-import { IsOptional, IsString, IsBoolean } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
-export class GetCategoriesQueryDto {
+export class GetCategoriesQueryDto extends PaginationDto {
   @ApiPropertyOptional({ type: String, description: 'Search by category name' })
   @IsOptional()
   @IsString()
@@ -16,13 +16,13 @@ export class GetCategoriesQueryDto {
   @IsString()
   includeServices?: string;
 
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @ApiPropertyOptional({ type: String, description: 'Sort field (name, createdAt, isActive)' })
   @IsOptional()
-  @Type(() => Number)
-  page?: number = 1;
+  @IsString()
+  sortBy?: string;
 
-  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({ enum: ['ASC', 'DESC'], default: 'ASC' })
   @IsOptional()
-  @Type(() => Number)
-  limit?: number = 10;
+  @IsString()
+  sortOrder?: 'ASC' | 'DESC';
 }

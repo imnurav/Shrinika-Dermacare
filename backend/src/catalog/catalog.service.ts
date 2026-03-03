@@ -1,65 +1,183 @@
 import { CategoryResponseDto, CategoryWithServicesDto } from './dto/category-response.dto';
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-// import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
+import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
+import { CategoryOptionDto, ServiceOptionDto } from './dto/options.dto';
 import { ServiceResponseDto } from './dto/service-response.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
-import { PrismaService } from '../prisma/prisma.service';
+import { Category } from './entities/category.entity';
+import { Service } from './entities/service.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class CatalogService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(Category)
+    private readonly categoryRepository: Repository<Category>,
+    @InjectRepository(Service)
+    private readonly serviceRepository: Repository<Service>,
+  ) {}
 
   // Categories
   async getCategories(
     search?: string,
     includeServices = false,
-  ): Promise<CategoryResponseDto[] | CategoryWithServicesDto[]> {
-    const where: any = { isActive: true };
+    paginationDto?: PaginationDto,
+    sortBy?: string,
+    sortOrder: 'ASC' | 'DESC' = 'ASC',
+  ): Promise<
+    | PaginatedResponse<CategoryResponseDto>
+    | PaginatedResponse<CategoryWithServicesDto>
+    | CategoryResponseDto[]
+    | CategoryWithServicesDto[]
+  > {
+    if (includeServices) {
+      const allowedSortFields: Record<string, string> = {
+        name: 'category.name',
+        description: 'category.description',
+        createdAt: 'category.createdAt',
+        isActive: 'category.isActive',
+      };
+      const sortColumn = allowedSortFields[sortBy || ''] || 'category.name';
 
-    if (search) {
-      where.name = { contains: search, mode: 'insensitive' };
+      const query = this.categoryRepository
+        .createQueryBuilder('category')
+        .leftJoin('category.services', 'service', 'service.isActive = :serviceActive', {
+          serviceActive: true,
+        })
+        .select([
+          'category.id',
+          'category.name',
+          'category.description',
+          'category.imageUrl',
+          'category.isActive',
+          'category.createdAt',
+          'service.id',
+          'service.categoryId',
+          'service.title',
+          'service.description',
+          'service.imageUrl',
+          'service.duration',
+          'service.price',
+          'service.isActive',
+          'service.createdAt',
+        ])
+        .where('category.isActive = :active', { active: true })
+        .orderBy(sortColumn, sortOrder)
+        .addOrderBy('service.createdAt', 'DESC');
+
+      if (search) {
+        query.andWhere('(CAST(category.id as text) ILIKE :search OR category.name ILIKE :search)', {
+          search: `%${search}%`,
+        });
+      }
+
+      if (paginationDto) {
+        const page = paginationDto.page || 1;
+        const limit = paginationDto.limit || 10;
+        const skip = (page - 1) * limit;
+        const [data, total] = await query.skip(skip).take(limit).getManyAndCount();
+        return {
+          data,
+          meta: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit),
+          },
+        };
+      }
+
+      return query.getMany();
     }
 
-    if (includeServices) {
-      return this.prisma.category.findMany({
-        where,
-        include: {
-          services: {
-            where: { isActive: true },
-            orderBy: { createdAt: 'desc' },
-          },
-        },
-        orderBy: { name: 'asc' },
+    const allowedSortFields: Record<string, string> = {
+      name: 'category.name',
+      description: 'category.description',
+      createdAt: 'category.createdAt',
+      isActive: 'category.isActive',
+    };
+    const sortColumn = allowedSortFields[sortBy || ''] || 'category.name';
+
+    const query = this.categoryRepository
+      .createQueryBuilder('category')
+      .select([
+        'category.id',
+        'category.name',
+        'category.description',
+        'category.imageUrl',
+        'category.isActive',
+        'category.createdAt',
+      ])
+      .where('category.isActive = :active', { active: true })
+      .orderBy(sortColumn, sortOrder);
+
+    if (search) {
+      query.andWhere('(CAST(category.id as text) ILIKE :search OR category.name ILIKE :search)', {
+        search: `%${search}%`,
       });
     }
 
-    return this.prisma.category.findMany({
-      where,
-      orderBy: { name: 'asc' },
+    if (paginationDto) {
+      const page = paginationDto.page || 1;
+      const limit = paginationDto.limit || 10;
+      const skip = (page - 1) * limit;
+      const [data, total] = await query.skip(skip).take(limit).getManyAndCount();
+      return {
+        data,
+        meta: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+    }
+
+    return query.getMany();
+  }
+
+  async getCategoryOptions(): Promise<CategoryOptionDto[]> {
+    return this.categoryRepository.find({
+      select: { id: true, name: true },
+      where: { isActive: true },
+      order: { name: 'ASC' },
     });
+  }
+
+  async getServiceOptions(categoryId?: string): Promise<ServiceOptionDto[]> {
+    const query = this.serviceRepository
+      .createQueryBuilder('service')
+      .select(['service.id', 'service.title', 'service.categoryId'])
+      .where('service.isActive = :active', { active: true })
+      .orderBy('service.title', 'ASC');
+
+    if (categoryId) {
+      query.andWhere('service.categoryId = :categoryId', { categoryId });
+    }
+
+    return query.getMany();
   }
 
   async getCategoryById(
     id: string,
     includeServices = false,
   ): Promise<CategoryResponseDto | CategoryWithServicesDto> {
-    const category = await this.prisma.category.findUnique({
+    const category = await this.categoryRepository.findOne({
       where: { id },
-      include: includeServices
-        ? {
-            services: {
-              where: { isActive: true },
-              orderBy: { createdAt: 'desc' },
-            },
-          }
-        : undefined,
+      relations: includeServices ? { services: true } : undefined,
+      order: includeServices ? { services: { createdAt: 'DESC' } } : undefined,
     });
 
     if (!category) {
       throw new NotFoundException('Category not found');
+    }
+
+    if (includeServices && category.services) {
+      category.services = category.services.filter((service) => service.isActive);
     }
 
     return category;
@@ -67,7 +185,7 @@ export class CatalogService {
 
   async createCategory(createCategoryDto: CreateCategoryDto): Promise<CategoryResponseDto> {
     // Check if category name already exists
-    const existing = await this.prisma.category.findUnique({
+    const existing = await this.categoryRepository.findOne({
       where: { name: createCategoryDto.name },
     });
 
@@ -75,16 +193,14 @@ export class CatalogService {
       throw new ConflictException('Category with this name already exists');
     }
 
-    return this.prisma.category.create({
-      data: createCategoryDto,
-    });
+    return this.categoryRepository.save(this.categoryRepository.create(createCategoryDto));
   }
 
   async updateCategory(
     id: string,
     updateCategoryDto: UpdateCategoryDto,
   ): Promise<CategoryResponseDto> {
-    const category = await this.prisma.category.findUnique({
+    const category = await this.categoryRepository.findOne({
       where: { id },
     });
 
@@ -94,7 +210,7 @@ export class CatalogService {
 
     // Check if new name conflicts with existing category
     if (updateCategoryDto.name && updateCategoryDto.name !== category.name) {
-      const existing = await this.prisma.category.findUnique({
+      const existing = await this.categoryRepository.findOne({
         where: { name: updateCategoryDto.name },
       });
 
@@ -103,56 +219,122 @@ export class CatalogService {
       }
     }
 
-    return this.prisma.category.update({
-      where: { id },
-      data: updateCategoryDto,
-    });
+    await this.categoryRepository.update({ id }, updateCategoryDto);
+    return this.categoryRepository.findOne({ where: { id } }) as Promise<CategoryResponseDto>;
   }
 
   async deleteCategory(id: string): Promise<void> {
-    const category = await this.prisma.category.findUnique({
+    const category = await this.categoryRepository.findOne({
       where: { id },
-      include: { services: true },
+      select: { id: true },
     });
 
     if (!category) {
       throw new NotFoundException('Category not found');
     }
 
-    if (category.services.length > 0) {
+    const hasServices = await this.serviceRepository.exist({
+      where: { categoryId: id },
+    });
+
+    if (hasServices) {
       throw new ConflictException('Cannot delete category with associated services');
     }
 
-    await this.prisma.category.delete({
-      where: { id },
-    });
+    await this.categoryRepository.delete({ id });
   }
 
   // Services
-  async getServices(categoryId?: string, search?: string): Promise<ServiceResponseDto[]> {
-    const where: any = { isActive: true };
+  async getServices(
+    categoryId?: string,
+    search?: string,
+    paginationDto?: PaginationDto,
+    sortBy?: string,
+    sortOrder: 'ASC' | 'DESC' = 'DESC',
+  ): Promise<PaginatedResponse<ServiceResponseDto> | ServiceResponseDto[]> {
+    const allowedSortFields: Record<string, string> = {
+      title: 'service.title',
+      category: 'category.name',
+      description: 'service.description',
+      duration: 'service.duration',
+      price: 'service.price',
+      isActive: 'service.isActive',
+      createdAt: 'service.createdAt',
+    };
+    const sortColumn = allowedSortFields[sortBy || ''] || 'service.createdAt';
+
+    const query = this.serviceRepository
+      .createQueryBuilder('service')
+      .leftJoin('service.category', 'category')
+      .select([
+        'service.id',
+        'service.categoryId',
+        'service.title',
+        'service.description',
+        'service.imageUrl',
+        'service.duration',
+        'service.price',
+        'service.isActive',
+        'service.createdAt',
+        'category.id',
+        'category.name',
+      ])
+      .where('service.isActive = :active', { active: true })
+      .orderBy(sortColumn, sortOrder);
+
     if (categoryId) {
-      where.categoryId = categoryId;
+      query.andWhere('service.categoryId = :categoryId', { categoryId });
     }
 
     if (search) {
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-      ];
+      query.andWhere(
+        '(CAST(service.id as text) ILIKE :search OR service.title ILIKE :search OR service.description ILIKE :search)',
+        {
+          search: `%${search}%`,
+        },
+      );
     }
 
-    return this.prisma.service.findMany({
-      where,
-      include: { category: true },
-      orderBy: { createdAt: 'desc' },
-    });
+    if (paginationDto) {
+      const page = paginationDto.page || 1;
+      const limit = paginationDto.limit || 10;
+      const skip = (page - 1) * limit;
+
+      const [data, total] = await query.skip(skip).take(limit).getManyAndCount();
+
+      return {
+        data,
+        meta: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+    }
+
+    return query.getMany();
   }
 
   async getServiceById(id: string): Promise<ServiceResponseDto> {
-    const service = await this.prisma.service.findUnique({
+    const service = await this.serviceRepository.findOne({
       where: { id },
-      include: { category: true },
+      relations: { category: true },
+      select: {
+        id: true,
+        categoryId: true,
+        title: true,
+        description: true,
+        imageUrl: true,
+        duration: true,
+        price: true,
+        isActive: true,
+        createdAt: true,
+        category: {
+          id: true,
+          name: true,
+        },
+      },
     });
 
     if (!service) {
@@ -164,7 +346,7 @@ export class CatalogService {
 
   async createService(createServiceDto: CreateServiceDto): Promise<ServiceResponseDto> {
     // Verify category exists
-    const category = await this.prisma.category.findUnique({
+    const category = await this.categoryRepository.findOne({
       where: { id: createServiceDto.categoryId },
     });
 
@@ -172,14 +354,32 @@ export class CatalogService {
       throw new NotFoundException('Category not found');
     }
 
-    return this.prisma.service.create({
-      data: createServiceDto,
-      include: { category: true },
-    });
+    const created = await this.serviceRepository.save(
+      this.serviceRepository.create(createServiceDto),
+    );
+    return this.serviceRepository.findOne({
+      where: { id: created.id },
+      relations: { category: true },
+      select: {
+        id: true,
+        categoryId: true,
+        title: true,
+        description: true,
+        imageUrl: true,
+        duration: true,
+        price: true,
+        isActive: true,
+        createdAt: true,
+        category: {
+          id: true,
+          name: true,
+        },
+      },
+    }) as Promise<ServiceResponseDto>;
   }
 
   async updateService(id: string, updateServiceDto: UpdateServiceDto): Promise<ServiceResponseDto> {
-    const service = await this.prisma.service.findUnique({
+    const service = await this.serviceRepository.findOne({
       where: { id },
     });
 
@@ -189,7 +389,7 @@ export class CatalogService {
 
     // Verify category exists if being updated
     if (updateServiceDto.categoryId) {
-      const category = await this.prisma.category.findUnique({
+      const category = await this.categoryRepository.findOne({
         where: { id: updateServiceDto.categoryId },
       });
 
@@ -198,15 +398,30 @@ export class CatalogService {
       }
     }
 
-    return this.prisma.service.update({
+    await this.serviceRepository.update({ id }, updateServiceDto);
+    return this.serviceRepository.findOne({
       where: { id },
-      data: updateServiceDto,
-      include: { category: true },
-    });
+      relations: { category: true },
+      select: {
+        id: true,
+        categoryId: true,
+        title: true,
+        description: true,
+        imageUrl: true,
+        duration: true,
+        price: true,
+        isActive: true,
+        createdAt: true,
+        category: {
+          id: true,
+          name: true,
+        },
+      },
+    }) as Promise<ServiceResponseDto>;
   }
 
   async deleteService(id: string): Promise<void> {
-    const service = await this.prisma.service.findUnique({
+    const service = await this.serviceRepository.findOne({
       where: { id },
     });
 
@@ -214,8 +429,6 @@ export class CatalogService {
       throw new NotFoundException('Service not found');
     }
 
-    await this.prisma.service.delete({
-      where: { id },
-    });
+    await this.serviceRepository.delete({ id });
   }
 }

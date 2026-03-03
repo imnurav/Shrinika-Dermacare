@@ -1,9 +1,9 @@
 import { IsOptional, IsEnum, IsString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { BookingStatus } from '@prisma/client';
+import { BookingStatus } from '../entities/booking.entity';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
-export class GetBookingsQueryDto {
+export class GetBookingsQueryDto extends PaginationDto {
   @ApiPropertyOptional({ type: String, description: 'Search by person name or phone' })
   @IsOptional()
   @IsString()
@@ -24,13 +24,16 @@ export class GetBookingsQueryDto {
   @IsString()
   endDate?: string;
 
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @ApiPropertyOptional({
+    type: String,
+    description: 'Sort field (personName, personPhone, preferredDate, preferredTime, status, createdAt)',
+  })
   @IsOptional()
-  @Type(() => Number)
-  page?: number = 1;
+  @IsString()
+  sortBy?: string;
 
-  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({ enum: ['ASC', 'DESC'], default: 'DESC' })
   @IsOptional()
-  @Type(() => Number)
-  limit?: number = 10;
+  @IsString()
+  sortOrder?: 'ASC' | 'DESC';
 }

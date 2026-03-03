@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { AxiosRequestHeaders } from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/';
+const API_URL = '/api/proxy/';
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -9,19 +10,12 @@ export const api = axios.create({
   },
 });
 
-// Add token to requests
 api.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-  }
   // If sending FormData, let the browser/axios set the Content-Type (with boundary)
   if (config.data instanceof FormData) {
     if (config.headers) {
       // Remove explicit content-type so browser sets the multipart boundary
-      delete (config.headers as any)['Content-Type'];
+      delete (config.headers as AxiosRequestHeaders)['Content-Type'];
     }
   }
   return config;
@@ -33,7 +27,6 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('token');
         localStorage.removeItem('user');
         window.location.href = '/login';
       }
@@ -43,4 +36,3 @@ api.interceptors.response.use(
 );
 
 export default api;
-

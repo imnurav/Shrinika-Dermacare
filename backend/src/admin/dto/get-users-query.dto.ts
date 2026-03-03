@@ -1,20 +1,33 @@
 import { IsOptional, IsString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
-export class GetUsersQueryDto {
+export class GetUsersQueryDto extends PaginationDto {
   @ApiPropertyOptional({ type: String, description: 'Search by name, email, or phone' })
   @IsOptional()
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @ApiPropertyOptional({
+    type: String,
+    description: 'Sort field (name, email, phone, role, gender, createdAt)',
+  })
   @IsOptional()
-  @Type(() => Number)
-  page?: number = 1;
+  @IsString()
+  sortBy?: string;
 
-  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({ enum: ['ASC', 'DESC'], default: 'DESC' })
   @IsOptional()
-  @Type(() => Number)
-  limit?: number = 10;
+  @IsString()
+  sortOrder?: 'ASC' | 'DESC';
+
+  @ApiPropertyOptional({ type: String, description: 'Created from date (YYYY-MM-DD)' })
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @ApiPropertyOptional({ type: String, description: 'Created to date (YYYY-MM-DD)' })
+  @IsOptional()
+  @IsString()
+  endDate?: string;
 }
