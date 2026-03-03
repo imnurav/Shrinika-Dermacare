@@ -106,9 +106,9 @@ export function useUsersPage(options?: UsersHookOptions) {
         sortBy,
         sortOrder,
       );
-      setUsers(data.data);
-      setTotalPages(data.meta.totalPages);
-      setTotalItems(data.meta.total);
+      setUsers(Array.isArray(data?.data) ? data.data : []);
+      setTotalPages(data?.meta?.totalPages ?? 1);
+      setTotalItems(data?.meta?.total ?? 0);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

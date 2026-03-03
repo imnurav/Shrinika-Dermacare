@@ -120,9 +120,9 @@ export function useBookingsPage(options?: BookingsHookOptions) {
         sortBy,
         sortOrder,
       );
-      setBookings(data.data);
-      setTotalPages(data.meta.totalPages);
-      setTotalItems(data.meta.total);
+      setBookings(Array.isArray(data?.data) ? data.data : []);
+      setTotalPages(data?.meta?.totalPages ?? 1);
+      setTotalItems(data?.meta?.total ?? 0);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -149,7 +149,7 @@ export function useBookingsPage(options?: BookingsHookOptions) {
     const loadServiceOptions = async () => {
       try {
         const services = await catalogService.getServiceOptions();
-        setServiceOptions(services);
+        setServiceOptions(Array.isArray(services) ? services : []);
       } catch {
         // No-op: regular actions already show errors.
       }
@@ -208,7 +208,7 @@ export function useBookingsPage(options?: BookingsHookOptions) {
           servicesPromise,
           loadAddressesForUser(booking.userId),
         ]);
-        if (serviceOptions.length === 0) setServiceOptions(services);
+        if (serviceOptions.length === 0) setServiceOptions(Array.isArray(services) ? services : []);
       } catch (err) {
         setError(getErrorMessage(err));
       } finally {

@@ -96,9 +96,9 @@ export function useCategoriesPage(options?: CategoriesHookOptions) {
         sortBy,
         sortOrder,
       );
-      setCategories(data.data);
-      setTotalItems(data.meta.total);
-      setTotalPages(data.meta.totalPages);
+      setCategories(Array.isArray(data?.data) ? data.data : []);
+      setTotalItems(data?.meta?.total ?? 0);
+      setTotalPages(data?.meta?.totalPages ?? 1);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

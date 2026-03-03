@@ -26,8 +26,22 @@ const EMPTY_STATS: DashboardAnalytics = {
   recentBookings: [],
 };
 
+function normalizeStats(input?: Partial<DashboardAnalytics> | null): DashboardAnalytics {
+  return {
+    totalBookings: input?.totalBookings ?? 0,
+    pendingBookings: input?.pendingBookings ?? 0,
+    confirmedBookings: input?.confirmedBookings ?? 0,
+    completedBookings: input?.completedBookings ?? 0,
+    cancelledBookings: input?.cancelledBookings ?? 0,
+    totalCategories: input?.totalCategories ?? 0,
+    totalServices: input?.totalServices ?? 0,
+    totalUsers: input?.totalUsers ?? 0,
+    recentBookings: Array.isArray(input?.recentBookings) ? input.recentBookings : [],
+  };
+}
+
 export function useDashboardOverview(initialStats?: DashboardAnalytics | null) {
-  const [stats, setStats] = useState<DashboardAnalytics>(initialStats || EMPTY_STATS);
+  const [stats, setStats] = useState<DashboardAnalytics>(normalizeStats(initialStats || EMPTY_STATS));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,7 +50,7 @@ export function useDashboardOverview(initialStats?: DashboardAnalytics | null) {
       try {
         setError(null);
         const data = await adminService.getDashboardAnalytics();
-        setStats(data);
+        setStats(normalizeStats(data));
       } catch (err) {
         setError(getErrorMessage(err));
       }

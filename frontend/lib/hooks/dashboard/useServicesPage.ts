@@ -94,10 +94,10 @@ export function useServicesPage(options?: ServicesHookOptions) {
         ),
         catalogService.getCategoryOptions(),
       ]);
-      setServices(servicesData.data);
-      setTotalItems(servicesData.meta.total);
-      setTotalPages(servicesData.meta.totalPages);
-      setCategories(categoriesData);
+      setServices(Array.isArray(servicesData?.data) ? servicesData.data : []);
+      setTotalItems(servicesData?.meta?.total ?? 0);
+      setTotalPages(servicesData?.meta?.totalPages ?? 1);
+      setCategories(Array.isArray(categoriesData) ? categoriesData : []);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
