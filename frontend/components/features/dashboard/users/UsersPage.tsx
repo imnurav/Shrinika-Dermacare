@@ -9,6 +9,7 @@ import UsersFilters from './UsersFilters';
 import UsersTable from './UsersTable';
 import UserFormModal from './UserFormModal';
 import { PaginatedResponse, User } from '@/lib/types';
+import { UserPlus } from 'lucide-react';
 
 type Props = {
   initialData?: PaginatedResponse<User> | null;
@@ -17,10 +18,26 @@ type Props = {
 
 export default function UsersPage({ initialData, initialQuery }: Props) {
   const state = useUsersPage({ initialData, initialQuery });
+  const canCreate = Boolean(state.currentUser?.role === 'ADMIN' || state.currentUser?.role === 'SUPERADMIN');
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <PageHeader title="Users" description="Manage all users" />
+      <PageHeader
+        title="Users"
+        description="Manage all users"
+        actionButton={
+          canCreate ? (
+            <button
+              type="button"
+              onClick={state.openCreate}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-50"
+            >
+              <UserPlus className="h-4 w-4" />
+              Create User
+            </button>
+          ) : null
+        }
+      />
 
       {state.error && <ErrorMessage message={state.error} onDismiss={() => state.setError(null)} type="error" />}
 

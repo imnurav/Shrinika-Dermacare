@@ -1,6 +1,7 @@
 'use client';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   ChevronsLeft,
   ChevronsRight,
@@ -59,36 +60,31 @@ export default function Sidebar({
       >
         <div className="flex flex-col h-full">
           <div className="border-b border-indigo-500/40 p-4">
-            <div className="mb-4 flex items-center justify-between gap-2 lg:hidden">
-              <h1 className="truncate text-lg font-bold text-white">Shrinika Derma</h1>
+            <div className="relative mb-4 flex flex-col items-center text-center lg:hidden">
               <button
                 type="button"
-                className="rounded-lg bg-white/10 p-2 hover:bg-white/20"
+                className="absolute right-0 top-0 rounded-lg bg-white/10 p-2 hover:bg-white/20"
                 onClick={onMobileClose}
                 aria-label="Close sidebar"
               >
                 <X className="h-4 w-4" />
               </button>
+              <Image src="/images/logo.png" alt="Shrinika Dermacare" width={48} height={48} className="h-12 w-12 rounded object-contain" />
+              <h1 className="mt-2 text-sm font-bold capitalize text-white">
+                {collapsed ? 'SD' : 'Shrinika Dermacare'}
+              </h1>
+              {!collapsed && <p className="text-[11px] text-indigo-200">Admin Dashboard</p>}
             </div>
-            <div className={`hidden items-center justify-between lg:flex ${collapsed ? 'flex-col gap-3' : ''}`}>
-              <div>
-                <h1 className={`font-bold ${collapsed ? 'text-base text-center' : 'text-xl'}`}>
-                  {collapsed ? 'SD' : 'Shrinika Derma'}
-                </h1>
-                {!collapsed && <p className="mt-1 text-xs text-indigo-200">Admin Dashboard</p>}
-              </div>
-              <button
-                type="button"
-                onClick={onToggleCollapsed}
-                className="rounded-lg bg-white/10 p-2 hover:bg-white/20"
-                aria-label="Toggle sidebar width"
-              >
-                {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
-              </button>
+            <div className="hidden w-full lg:flex lg:flex-col lg:items-center lg:text-center">
+              <Image src="/images/logo.png" alt="Shrinika Dermacare" width={44} height={44} className="h-11 w-11 rounded object-contain" />
+              <h1 className={`mt-2 font-bold capitalize ${collapsed ? 'text-xs leading-4' : 'text-base'}`}>
+                {collapsed ? 'SD' : 'Shrinika Dermacare'}
+              </h1>
+              {!collapsed && <p className="mt-1 text-[11px] text-indigo-200">Admin Dashboard</p>}
             </div>
           </div>
 
-          <nav className="flex-1 p-4 space-y-2">
+          <nav className={`flex-1 p-4 ${collapsed ? 'space-y-3' : 'space-y-2'}`}>
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = isActiveRoute(item.href);
@@ -101,7 +97,8 @@ export default function Sidebar({
                     onMobileClose();
                   }}
                   className={`
-                    flex items-center ${collapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg
+                    flex items-center rounded-lg transition-all duration-200
+                    ${collapsed ? 'mx-auto h-12 w-12 justify-center px-0' : 'space-x-3 px-4 py-3'}
                     transition-all duration-200
                     ${isActive
                       ? 'bg-white text-indigo-700 shadow-lg'
@@ -115,6 +112,19 @@ export default function Sidebar({
               );
             })}
           </nav>
+
+          <div className="border-t border-indigo-500/40 p-4">
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
+              className={`flex items-center rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20 ${collapsed ? 'mx-auto justify-center' : 'w-full justify-center gap-2'
+                }`}
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+              {!collapsed && <span>Collapse</span>}
+            </button>
+          </div>
         </div>
       </aside>
 

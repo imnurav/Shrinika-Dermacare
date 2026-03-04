@@ -1,5 +1,5 @@
 'use client';
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { authService } from '@/lib/services/auth';
 import { User } from '@/lib/types';
 
@@ -12,7 +12,15 @@ type CurrentUserContextValue = {
 const CurrentUserContext = createContext<CurrentUserContextValue | undefined>(undefined);
 
 export function CurrentUserProvider({ children, initialUser = null }: { children: React.ReactNode; initialUser?: User | null }) {
-    const [user, setUser] = useState<User | null>(() => initialUser ?? authService.getCurrentUser());
+    const [user, setUser] = useState<User | null>(initialUser ?? null);
+
+    useEffect(() => {
+        if (initialUser) {
+            setUser(initialUser);
+            return;
+        }
+        setUser(authService.getCurrentUser());
+    }, [initialUser]);
 
     const refreshUser = () => {
         setUser(authService.getCurrentUser());

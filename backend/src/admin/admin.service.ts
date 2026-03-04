@@ -149,9 +149,12 @@ export class AdminService {
       .orderBy(sortColumn, sortOrder);
 
     if (search) {
-      query.where('(CAST(user.id as text) ILIKE :search OR user.name ILIKE :search OR user.email ILIKE :search OR user.phone ILIKE :search)', {
-        search: `%${search}%`,
-      });
+      query.where(
+        '(CAST(user.id as text) ILIKE :search OR user.name ILIKE :search OR user.email ILIKE :search OR user.phone ILIKE :search)',
+        {
+          search: `%${search}%`,
+        },
+      );
     }
 
     if (startDate && endDate) {
@@ -230,7 +233,9 @@ export class AdminService {
 
     if (updateUserDto.role !== undefined) {
       if (actorRole === UserRole.SUPERADMIN) {
-        // allowed to set any role
+        if (updateUserDto.role === UserRole.SUPERADMIN) {
+          throw new ForbiddenException('SUPERADMIN role can only be managed by developers');
+        }
       } else if (actorRole === UserRole.ADMIN) {
         // Admins cannot change their own role
         if (isSelf) {
@@ -277,7 +282,9 @@ export class AdminService {
     const genderToAssign = createUserDto.gender;
 
     if (actorRole === UserRole.SUPERADMIN) {
-      // allowed to assign any role
+      if (roleToAssign === UserRole.SUPERADMIN) {
+        throw new ForbiddenException('SUPERADMIN user can only be created by developers');
+      }
     } else if (actorRole === UserRole.ADMIN) {
       // Admins may only create regular users (cannot create ADMIN or SUPERADMIN)
       if (roleToAssign === UserRole.SUPERADMIN || roleToAssign === UserRole.ADMIN) {
@@ -338,7 +345,9 @@ export class AdminService {
     return this.bookingService.updateBookingAsAdmin(bookingId, updateBookingDto);
   }
 
-  async createBookingForUser(createAdminBookingDto: CreateAdminBookingDto): Promise<BookingResponseDto> {
+  async createBookingForUser(
+    createAdminBookingDto: CreateAdminBookingDto,
+  ): Promise<BookingResponseDto> {
     const { userId, ...bookingData } = createAdminBookingDto;
     return this.bookingService.createBooking(userId, bookingData);
   }

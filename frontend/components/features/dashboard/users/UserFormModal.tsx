@@ -35,8 +35,22 @@ export default function UserFormModal({
   onFileChange,
   onRemoveImage,
 }: Props) {
+  const isCreateMode = !editingUser;
+
+  const roleOptions = [
+    { value: UserRole.USER, label: 'User' },
+    ...(currentUserRole === UserRole.SUPERADMIN ? [{ value: UserRole.ADMIN, label: 'Admin' }] : []),
+  ];
+
   return (
-    <FormModal isOpen={isOpen} onClose={onClose} onSubmit={onSubmit} title="Edit User" submitText="Save" loading={loading}>
+    <FormModal
+      isOpen={isOpen}
+      onClose={onClose}
+      onSubmit={onSubmit}
+      title={isCreateMode ? 'Create User' : 'Edit User'}
+      submitText={isCreateMode ? 'Create' : 'Save'}
+      loading={loading}
+    >
       <div className="space-y-4">
         <FormInput
           label="Name"
@@ -45,11 +59,28 @@ export default function UserFormModal({
           placeholder="User name"
         />
         <FormInput
+          label="Email"
+          type="email"
+          value={formData.email}
+          onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+          placeholder="Email address"
+          disabled={!isCreateMode}
+        />
+        <FormInput
           label="Phone"
           value={formData.phone}
           onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
           placeholder="Phone number"
         />
+        {isCreateMode && (
+          <FormInput
+            label="Password"
+            type="password"
+            value={formData.password}
+            onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
+            placeholder="Minimum 6 characters"
+          />
+        )}
         <ImageUploadField
           label="Profile Image"
           preview={imagePreview}
@@ -70,19 +101,10 @@ export default function UserFormModal({
           label="Role"
           value={formData.role}
           onChange={(e) => setFormData((prev) => ({ ...prev, role: e.target.value as UserRole }))}
-          options={[
-            { value: UserRole.USER, label: 'User' },
-            ...(currentUserRole === UserRole.SUPERADMIN || currentUserRole === UserRole.ADMIN
-              ? [{ value: UserRole.ADMIN, label: 'Admin' }]
-              : []),
-            ...(currentUserRole === UserRole.SUPERADMIN
-              ? [{ value: UserRole.SUPERADMIN, label: 'Super Admin' }]
-              : []),
-          ]}
+          options={roleOptions}
           disabled={currentUserId === editingUser?.id}
         />
       </div>
     </FormModal>
   );
 }
-

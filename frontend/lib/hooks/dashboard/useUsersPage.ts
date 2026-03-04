@@ -14,7 +14,9 @@ import { PaginatedResponse } from '@/lib/types';
 
 const EMPTY_FORM: UserFormData = {
   name: '',
+  email: '',
   phone: '',
+  password: '',
   imageUrl: '',
   role: UserRole.USER,
   gender: UserGender.OTHER,
@@ -205,12 +207,22 @@ export function useUsersPage(options?: UsersHookOptions) {
     setEditingUser(user);
     setFormData({
       name: user.name || '',
+      email: user.email || '',
       phone: user.phone || '',
+      password: '',
       imageUrl: user.imageUrl || '',
       role: user.role,
       gender: user.gender || UserGender.OTHER,
     });
     setImagePreview(user.imageUrl || null);
+    setSelectedFile(null);
+    setIsModalOpen(true);
+  }, []);
+
+  const openCreate = useCallback(() => {
+    setEditingUser(null);
+    setFormData(EMPTY_FORM);
+    setImagePreview(null);
     setSelectedFile(null);
     setIsModalOpen(true);
   }, []);
@@ -236,27 +248,41 @@ export function useUsersPage(options?: UsersHookOptions) {
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!editingUser) return;
     try {
       setIsSaving(true);
       setError(null);
       const form = new FormData();
       if (formData.name) form.append('name', formData.name);
+      if (formData.email) form.append('email', formData.email);
       if (formData.phone) form.append('phone', formData.phone);
+      if (!editingUser && formData.password) form.append('password', formData.password);
       if (formData.role) form.append('role', formData.role);
       if (formData.gender) form.append('gender', formData.gender);
       if (selectedFile) form.append('file', selectedFile);
 
-      const updated = await usersService.updateUser(editingUser.id, form);
-      setUsers((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-      showToast('User updated successfully', 'success');
+      if (!editingUser) {
+        if (!formData.password) {
+          throw new Error('Password is required');
+        }
+        if (!formData.email && !formData.phone) {
+          throw new Error('Email or phone is required');
+        }
+        const created = await usersService.createUser(form);
+        setUsers((prev) => [created, ...prev]);
+        setTotalItems((prev) => prev + 1);
+        showToast('User created successfully', 'success');
+      } else {
+        const updated = await usersService.updateUser(editingUser.id, form);
+        setUsers((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+        showToast('User updated successfully', 'success');
+      }
       closeModal();
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
       setIsSaving(false);
     }
-  }, [closeModal, editingUser, formData.gender, formData.name, formData.phone, formData.role, selectedFile, showToast]);
+  }, [closeModal, editingUser, formData.email, formData.gender, formData.name, formData.password, formData.phone, formData.role, selectedFile, showToast]);
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return;
@@ -275,7 +301,7 @@ export function useUsersPage(options?: UsersHookOptions) {
   return {
     page, limit, users, error, sortBy, isLoading, sortOrder, endDate, startDate, formData, isSaving, totalPages, totalItems,
     isModalOpen, searchInput, searchTerm, editingUser, deleteTarget, imagePreview, currentUser, setError, setFormData, setDeleteTarget,
-    closeModal, openEdit, handleSort, handleSave, changePage, handleDelete, changeLimit, updateSearch, updateFilter,
+    closeModal, openEdit, openCreate, handleSort, handleSave, changePage, handleDelete, changeLimit, updateSearch, updateFilter,
     handleFileChange, pageSizeOptions: PAGE_SIZE_OPTIONS,
   };
 }

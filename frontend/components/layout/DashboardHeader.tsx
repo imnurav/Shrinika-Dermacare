@@ -1,5 +1,5 @@
 'use client';
-import { Menu, UserCircle } from 'lucide-react';
+import { Loader2, Menu, UserCircle } from 'lucide-react';
 import { authService } from '@/lib/services/auth';
 import { useCurrentUser } from '@/lib/context/CurrentUserContext';
 import { getUserAvatar } from '@/lib/utils/avatar';
@@ -17,6 +17,7 @@ export default function DashboardHeader({ onMenuClick, routeLoading = false }: D
   const router = useRouter();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { user: currentUser } = useCurrentUser();
   const isClient = useSyncExternalStore(
@@ -36,8 +37,13 @@ export default function DashboardHeader({ onMenuClick, routeLoading = false }: D
   }, []);
 
   const logout = async () => {
-    await authService.logout();
-    router.push('/login');
+    try {
+      setIsLoggingOut(true);
+      await authService.logout();
+      router.push('/login');
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   return (
@@ -54,7 +60,10 @@ export default function DashboardHeader({ onMenuClick, routeLoading = false }: D
               <Menu className="h-5 w-5" />
             </button>
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
-              <p className="text-sm font-semibold leading-tight text-slate-900">Shrinika Derma Admin</p>
+              <div className="flex items-center gap-2">
+                <Image src="/images/logo.png" alt="Shrinika Derma" width={20} height={20} className="h-5 w-5 rounded object-contain" />
+                <p className="text-sm font-semibold leading-tight text-slate-900">Shrinika Derma Admin</p>
+              </div>
               <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
                 {isClient ? (currentUser?.role ?? 'ADMIN') : 'ADMIN'}
               </p>
@@ -146,7 +155,9 @@ export default function DashboardHeader({ onMenuClick, routeLoading = false }: D
 
       <Modal
         isOpen={isLogoutOpen}
-        onClose={() => setIsLogoutOpen(false)}
+        onClose={() => {
+          if (!isLoggingOut) setIsLogoutOpen(false);
+        }}
         title="Confirm logout"
         size="sm"
         footer={
@@ -154,6 +165,7 @@ export default function DashboardHeader({ onMenuClick, routeLoading = false }: D
             <button
               type="button"
               onClick={() => setIsLogoutOpen(false)}
+              disabled={isLoggingOut}
               className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
             >
               Cancel
@@ -161,9 +173,17 @@ export default function DashboardHeader({ onMenuClick, routeLoading = false }: D
             <button
               type="button"
               onClick={logout}
+              disabled={isLoggingOut}
               className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
             >
-              Logout
+              {isLoggingOut ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Logging out...
+                </span>
+              ) : (
+                'Logout'
+              )}
             </button>
           </>
         }
