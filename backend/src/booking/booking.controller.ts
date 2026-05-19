@@ -19,6 +19,7 @@ import {
   Get,
   Put,
 } from '@nestjs/common';
+
 @ApiTags('Booking')
 @ApiBearerAuth('JWT-auth')
 @Controller('bookings')

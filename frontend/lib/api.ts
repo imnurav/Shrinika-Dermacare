@@ -34,7 +34,13 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
+      // Don't redirect when the login/register endpoint itself returns 401
+      // (e.g. wrong credentials) — that would wipe the form before the user sees the error.
+      const requestUrl: string = error.config?.url ?? '';
+      const isAuthEndpoint =
+        requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
+
+      if (!isAuthEndpoint && typeof window !== 'undefined') {
         localStorage.removeItem('access_token');
         localStorage.removeItem('user');
         window.location.href = '/login';

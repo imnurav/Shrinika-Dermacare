@@ -1,42 +1,42 @@
+import { ApiPaginationQuery, Pagination } from '../common/decorators/pagination.decorator';
+import { UpdateBookingStatusDto } from '../booking/dto/update-booking-status.dto';
+import { GetBookingsQueryDto } from '../booking/dto/get-bookings-query.dto';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { BookingResponseDto } from '../booking/dto/booking-response.dto';
+import { CreateAdminBookingDto } from './dto/create-admin-booking.dto';
+import { DashboardAnalyticsDto } from './dto/dashboard-analytics.dto';
+import { UpdateBookingDto } from '../booking/dto/update-booking.dto';
+import { ErrorResponseDto } from '../common/dto/error-response.dto';
+import { BookingStatus } from '../booking/entities/booking.entity';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { GetUsersQueryDto } from './dto/get-users-query.dto';
+import { Roles } from '../common/decorators/roles.decorator';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { UserRole } from '../user/entities/user.entity';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import { AdminService } from './admin.service';
 import {
   ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiQuery,
-  ApiConsumes,
   ApiBody,
+  ApiQuery,
+  ApiResponse,
+  ApiConsumes,
+  ApiOperation,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
-import { UpdateBookingStatusDto } from '../booking/dto/update-booking-status.dto';
-import { DashboardAnalyticsDto } from './dto/dashboard-analytics.dto';
-import { ApiPaginationQuery, Pagination } from '../common/decorators/pagination.decorator';
 import {
-  Controller,
   Get,
   Put,
-  Param,
-  Query,
   Body,
   Post,
+  Param,
+  Query,
   Delete,
-  UseInterceptors,
+  Controller,
   UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { BookingResponseDto } from '../booking/dto/booking-response.dto';
-import { ErrorResponseDto } from '../common/dto/error-response.dto';
-import { PaginationDto } from '../common/dto/pagination.dto';
-import { GetBookingsQueryDto } from '../booking/dto/get-bookings-query.dto';
-import { CreateAdminBookingDto } from './dto/create-admin-booking.dto';
-import { GetUsersQueryDto } from './dto/get-users-query.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { UpdateBookingDto } from '../booking/dto/update-booking.dto';
-import { Roles } from '../common/decorators/roles.decorator';
-import { AdminService } from './admin.service';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { CreateUserDto } from './dto/create-user.dto';
-import { BookingStatus } from '../booking/entities/booking.entity';
-import { UserRole } from '../user/entities/user.entity';
 
 @ApiTags('Admin')
 @ApiBearerAuth('JWT-auth')

@@ -1,18 +1,19 @@
+import { EmailModule } from './common/services/email/email.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { getTypeOrmConfig } from './config/typeorm.config';
 import { CatalogModule } from './catalog/catalog.module';
 import { BookingModule } from './booking/booking.module';
 import { RolesGuard } from './common/guards/roles.guard';
-import { getTypeOrmConfig } from './config/typeorm.config';
 import { UploadModule } from './upload/upload.module';
 import { AdminModule } from './admin/admin.module';
+import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AppService } from './app.service';
 import { APP_GUARD } from '@nestjs/core';
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AppService } from './app.service';
     BookingModule,
     UploadModule,
     AdminModule,
+    EmailModule,
     AuthModule,
     UserModule,
   ],

@@ -1,7 +1,9 @@
 import { Controller, Post, Body, HttpCode, HttpStatus, Logger } from '@nestjs/common';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { Public } from '../common/decorators/public.decorator';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { RegisterDto } from './dto/register.dto';
 import { AuthService } from './auth.service';
@@ -47,7 +49,6 @@ export class AuthController {
     return authResponse;
   }
 
-  @Public()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout user' })
@@ -57,5 +58,42 @@ export class AuthController {
       this.logger.log('logout success');
     }
     return { message: 'Logged out successfully' };
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request password reset' })
+  @ApiResponse({ status: 200, description: 'Password reset email sent' })
+  @ApiResponse({ status: 400, description: 'Email or phone is required', type: ErrorResponseDto })
+  async requestPasswordReset(
+    @Body() requestPasswordResetDto: RequestPasswordResetDto,
+  ): Promise<{ message: string }> {
+    await this.authService.requestPasswordReset(requestPasswordResetDto);
+    if (this.debugAuthLogs) {
+      this.logger.log(
+        `password reset requested for identifier=${requestPasswordResetDto.email ?? requestPasswordResetDto.phone}`,
+      );
+    }
+    return { message: 'Password reset email sent' };
+  }
+
+  @Public()
+  @Post('reset-password/confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset password using reset token' })
+  @ApiResponse({ status: 200, description: 'Password reset successful' })
+  @ApiResponse({ status: 400, description: 'Invalid request', type: ErrorResponseDto })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid or expired reset token',
+    type: ErrorResponseDto,
+  })
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto): Promise<{ message: string }> {
+    await this.authService.resetPassword(resetPasswordDto);
+    if (this.debugAuthLogs) {
+      this.logger.log('password reset completed');
+    }
+    return { message: 'Password has been reset successfully' };
   }
 }

@@ -1,10 +1,9 @@
 'use client';
 import ErrorMessage from '@/components/common/ErrorMessage';
 import { getErrorMessage } from '@/lib/utils/errorHandler';
-import { LogIn, Mail, Phone, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Phone, Send } from 'lucide-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { authService } from '@/lib/services/auth';
-import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { useState } from 'react';
 import { z } from 'zod';
@@ -21,10 +20,9 @@ function detectInputType(value: string): 'email' | 'phone' | 'unknown' {
   return 'unknown';
 }
 
-const loginSchema = z
+const forgotPasswordSchema = z
   .object({
     identifier: z.string().min(1, 'Email or phone is required'),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
   })
   .refine(
     (data) =>
@@ -35,13 +33,12 @@ const loginSchema = z
     }
   );
 
-type LoginForm = z.infer<typeof loginSchema>;
+type ForgotPasswordForm = z.infer<typeof forgotPasswordSchema>;
 
-export default function LoginPage() {
-  const router = useRouter();
+export default function ForgotPasswordPage() {
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [identifierValue, setIdentifierValue] = useState('');
 
   const inputType = detectInputType(identifierValue);
@@ -50,13 +47,14 @@ export default function LoginPage() {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
+  } = useForm<ForgotPasswordForm>({
+    resolver: zodResolver(forgotPasswordSchema),
   });
 
-  const onSubmit = async (data: LoginForm) => {
+  const onSubmit = async (data: ForgotPasswordForm) => {
     setIsLoading(true);
     setError('');
+    setSuccess('');
 
     try {
       const isEmail = EMAIL_REGEX.test(data.identifier);
@@ -64,17 +62,16 @@ export default function LoginPage() {
       const normalizedIdentifier = isEmail
         ? data.identifier
         : data.identifier.replace(/[\s\-\(\)]/g, '');
-      console.log({
-        email: isEmail ? normalizedIdentifier : undefined,
-        phone: !isEmail ? normalizedIdentifier : undefined,
-      });
 
-      await authService.login({
+      await authService.requestPasswordReset({
         email: isEmail ? normalizedIdentifier : undefined,
         phone: !isEmail ? normalizedIdentifier : undefined,
-        password: data.password,
       });
-      router.push('/dashboard');
+      setSuccess(
+        isEmail
+          ? 'Password reset link sent! Check your email.'
+          : 'Password reset OTP sent! Check your phone.'
+      );
     } catch (err: unknown) {
       setError(getErrorMessage(err));
     } finally {
@@ -90,10 +87,12 @@ export default function LoginPage() {
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 rounded-full mb-4">
-              <LogIn className="w-8 h-8 text-indigo-600" />
+              <Send className="w-8 h-8 text-indigo-600" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900">Admin Login</h1>
-            <p className="text-gray-600 mt-2">Sign in to access the dashboard</p>
+            <h1 className="text-3xl font-bold text-gray-900">Forgot Password</h1>
+            <p className="text-gray-600 mt-2">
+              Enter your email or phone to reset your password
+            </p>
           </div>
 
           {error && (
@@ -102,6 +101,12 @@ export default function LoginPage() {
               onDismiss={() => setError('')}
               type="error"
             />
+          )}
+
+          {success && (
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-green-800">{success}</p>
+            </div>
           )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -140,64 +145,21 @@ export default function LoginPage() {
               )}
             </div>
 
-            {/* Password */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 opacity-100" />
-                <input
-                  {...register('password')}
-                  type={showPassword ? 'text' : 'password'}
-                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 bg-white"
-                  placeholder="Enter your password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.password.message}
-                </p>
-              )}
-            </div>
-
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              className="w-full bg-indigo-600 text-white py-3 px-4 rounded-lg hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isLoading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Signing in...</span>
-                </>
-              ) : (
-                <>
-                  <LogIn className="w-5 h-5 opacity-100" />
-                  <span>Sign In</span>
-                </>
-              )}
+              {isLoading ? 'Sending...' : 'Send Reset Link'}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <a
-              href="/forgot-password"
+              href="/login"
               className="text-indigo-600 hover:text-indigo-500 text-sm"
             >
-              Forgot your password?
+              Back to Login
             </a>
           </div>
         </div>

@@ -1,12 +1,19 @@
-import { Injectable, UnauthorizedException, ConflictException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { AuthResponseDto, UserResponseDto } from './dto/auth-response.dto';
+import { EmailService } from '@/common/services/email/email.services';
+import { User, UserGender } from '../user/entities/user.entity';
+import { InjectRepository } from '@nestjs/typeorm';
 import { RegisterDto } from './dto/register.dto';
 import { ConfigService } from '@nestjs/config';
 import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User, UserGender } from '../user/entities/user.entity';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -19,7 +26,8 @@ export class AuthService {
     private readonly userRepository: Repository<User>,
     private jwtService: JwtService,
     private configService: ConfigService,
-  ) {}
+    private emailService: EmailService,
+  ) { }
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
     const { name, email, phone, password, imageUrl, gender } = registerDto;
@@ -129,6 +137,57 @@ export class AuthService {
     };
   }
 
+  async requestPasswordReset({ email, phone }: { email?: string; phone?: string }): Promise<void> {
+    if (!email && !phone) {
+      throw new BadRequestException('Email or phone is required');
+    }
+
+    const user = await this.userRepository.findOne({
+      where: email ? { email } : { phone },
+    });
+
+    if (!user || !user.email) {
+      // For security, do not reveal whether the user exists or has an email
+      return;
+    }
+
+    const resetToken = await this.generateResetToken(user.id, user.email, user.phone);
+    await this.emailService.sendForgotPasswordEmail(user.email, resetToken);
+  }
+
+  async resetPassword(resetPasswordDto: { token: string; newPassword: string }): Promise<void> {
+    const { token, newPassword } = resetPasswordDto;
+    let payload: { sub: string; email?: string; phone?: string };
+    try {
+      payload = await this.jwtService.verifyAsync(token, {
+        secret: this.configService.get<string>('JWT_RESET_SECRET'),
+      });
+    } catch (error) {
+      if (this.debugAuthLogs) {
+        this.logger.warn('reset password token invalid or expired');
+      }
+      throw new UnauthorizedException('Invalid or expired reset token');
+    }
+
+    const user = await this.userRepository.findOne({ where: { id: payload.sub } });
+    if (!user || user.email !== payload.email || user.phone !== payload.phone) {
+      throw new UnauthorizedException('Invalid reset token');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.userRepository.update(user.id, { password: hashedPassword });
+
+    if (this.debugAuthLogs) {
+      this.logger.log(`password reset completed userId=${user.id}`);
+    }
+  }
+
+  private async generateResetToken(userId: string, email: string, phone: string): Promise<string> {
+    return this.jwtService.signAsync(
+      { sub: userId, email, phone },
+      { expiresIn: '15m', secret: this.configService.get<string>('JWT_RESET_SECRET') },
+    );
+  }
   private async generateToken(userId: string, email?: string, phone?: string): Promise<string> {
     const payload = { sub: userId, email, phone };
     return this.jwtService.signAsync(payload, {
